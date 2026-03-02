@@ -1,100 +1,102 @@
-import numpy as np
-import matplotlib.pyplot as plt
+import numpy as np # Importujemy bibliotekę NumPy (skrót 'np') do zaawansowanej matematyki, potrzebna nam do stworzenia tablic pamiętających tysiące ułamków sekund (nasza oś X).
+import matplotlib.pyplot as plt # Importujemy Pyplot z Matplotlib (skrót 'plt'), to nasze "cyfrowe okienko Simview", dzięki niemu wyrysujemy na ekranie kolorowe krzywe.
+import pandas as pd # Importujemy potężną bibliotekę Pandas (skrót 'pd'), jej jedynym zadaniem jest eleganckie wczytanie wyeksportowanego z PSIM pliku .csv.
+import os # Importujemy wbudowany moduł 'os', który pozwala Pythonowi porozmawiać z systemem (użyjemy go żeby sprawdzić, czy plik CSV w ogóle leży w folderze).
 
-# ==========================================
-# 1. PARAMETRY FIZYCZNE (MÓJ WIRTUALNY SPRZĘT)
-# ==========================================
-# Traktuję to jako stałe konfiguracyjne mojego układu.
+# ==============================================================================
+# 1. PARAMETRY FIZYCZNE I STEROWANIA (Cyfrowy klon Twojego układu z PSIM)
+# ==============================================================================
+V_in = 100.0 # Napięcie zasilacza V6 z lewej strony schematu. Ustaliliśmy, że offset to 100, a amplituda to 0, więc to po prostu bateria 100V prądu stałego (DC).
+L = 0.75e-3 # Indukcyjność naszej głównej cewki 'l7'. Wzięte z oryginalnej nazwy pliku od profesora (0.75 mH). Jest to fizyczny magazyn energii pola magnetycznego.
+R_L = 0.05 # Rezystancja drutu z jakiego zrobiona jest cewka. Odczytaliśmy te 0.05 Ohma z małego opornika szeregowego w PSIM. Zżera on nam ułamek mocy jako ciepło.
+C = 1.5e-3 # Pojemność kondensatora na prawym końcu układu (1.5 mF). Przez mój wczesny błąd ustawiłem to na 200uF, teraz jest potężne i w końcu zgodne ze schematem.
+R_load = 50.0 # Opór odbiornika. Po analizie skoku obciążenia (Tstep=0.2s) dowiedliśmy, że przez pierwsze 10 ms działa tylko ten jeden, lewy opornik na końcu układu.
 
-V_in = 100.0         # Moje główne zasilanie. Traktuję to jak idealną baterię 100V.
-L = 0.75e-3          # Cewka (0.75 mH). Działa jak koło zamachowe dla prądu - nie pozwala mu skakać nagle.
-R_L = 0.05           # Opór drutu na cewce. Nawet miedź stawia opór, więc tu ucieka mi trochę energii w ciepło.
-C = 200e-6           # Kondensator (200 uF). Mój bufor, który gromadzi ładunek, żeby wygładzić napięcie na wyjściu.
-V_c_init = 100.0     # Napięcie startowe. Mój model nie startuje z pustym kondensatorem, zakładam na wejściu od razu 100V, tak jak w PSIM.
+f_sw = 2000.0 # Częstotliwość "klikania" tranzystorów (metronom) podana w Hertzach. Jest to wartość wpisana wewnątrz Twoich układów Gating Block po lewej stronie.
+T_sw = 1.0 / f_sw # Okres jednego kliknięcia. Dzielimy 1 sekundę przez 2000 Hz i wychodzi nam, że pełen cykl przełączenia obu tranzystorów trwa dokładnie 0.0005 sekundy (0.5 ms).
+D = 0.5 # Wypełnienie (Duty Cycle). Równe 0.5 (czyli 50%), ponieważ w Gating Blockach podaliśmy podział na równe połowy koła (punkty przełączania 0 do 180 stopni).
 
-# Obciążenie, czyli to, co zżera mój prąd na samym końcu układu.
-R_load1 = 50.0       # Główny opornik.
-R_load2 = 1000.0     # Ten mały, dodatkowy opornik ze schematu.
-# Rezystancja zastępcza (R_eq). Prąd ma dwie drogi ucieczki, więc liczę opór ze wzoru na połączenie równoległe.
-R_eq = (R_load1 * R_load2) / (R_load1 + R_load2) 
+t_end = 0.01 # Moment, w którym symulacja ma się zatrzymać (10 milisekund). Odpowiada to dokładnie końcowej wartości czasu z Twoich screenów z modułu Simview w PSIM.
+dt = 1e-6 # "Delta t", czyli mikrokrok czasowy (1 mikrosekunda). Komputer nie liczy czasu płynnie, lecz skacze klatka po klatce. Im mniejszy krok, tym idealniejsza symulacja.
 
-# ==========================================
-# 2. USTAWIENIA ZEGARA I PAMIĘCI
-# ==========================================
-dt = 1e-05           # Krok czasu (10 us). To moje "delta time". Co tyle czasu zatrzymuję świat i przeliczam fizykę.
-t_total = 0.01       # Czas symulacji (10 ms). Tyle czasu wirtualnego świata chcę wygenerować.
-N_steps = int(t_total / dt) # Liczba klatek (1000). Dzielę czas całkowity przez krok.
+# ==============================================================================
+# 2. SYMULACJA NUMERYCZNA (Nasz własny silnik fizyczny krok-po-kroku)
+# ==============================================================================
+t_vals = np.arange(0, t_end, dt) # Tworzymy poziomą oś czasu (oś X). NumPy generuje nam miliony punktów od zera do 0.01s z krokiem co 1 mikrosekundę.
+i_L_vals = np.zeros_like(t_vals) # Tworzymy pustą pamięć na prąd cewki (tyle samo punktów co czasu). Na razie są to same zera. Tu włożymy nasze wyliczenia (Sonda Current Probe).
+v_C_vals = np.zeros_like(t_vals) # Tworzymy pustą pamięć na napięcie kondensatora. Tutaj po kolei będziemy wpisywać to, co odczytuje sonda V2 na schemacie w PSIM.
 
-# Przygotowuję puste tablice na logi z symulacji.
-time = np.linspace(0, t_total, N_steps) # Oś czasu
-i_L = np.zeros(N_steps) # Historia prądu cewki
-v_C = np.zeros(N_steps) # Historia napięcia kondensatora
+i_L = 0.0 # Stan początkowy prądu. Kiedy wciskasz "Run" w PSIM, cewka jest "pusta", więc nasz prąd na wejściu w czasie 0.0 to absolutne 0 Amperów.
+v_C = 0.0 # Stan początkowy napięcia kondensatora. Tu też kondensator startuje rozładowany (0 Voltów). Tę wartość wcześniej błędnie miałem na 100.
 
-# Stan na starcie (Klatka nr 0).
-v_C[0] = V_c_init    # Kondensator ma od razu 100 V.
-i_L[0] = 0.0         # Prąd na starcie wynosi zero.
-
-# ==========================================
-# 3. GENERATOR PWM (MÓJ "GŁUPI" GATING BLOCK)
-# ==========================================
-# Zastępuję skomplikowany sterownik profesora prostym metronomem.
-f_sw = 2000.0        # Tranzystor będzie klikał 2000 razy na sekundę (2 kHz).
-T_sw = 1.0 / f_sw    # Długość jednego cyklu wynosi 0.5 ms.
-Duty = 0.5           # Wypełnienie 50%. Przez pół cyklu tranzystor przewodzi, przez resztę nie.
-
-print("Odpalam silnik fizyczny...")
-
-# ==========================================
-# 4. GŁÓWNA PĘTLA SYMULACYJNA
-# ==========================================
-# Przeliczam klatkę 'k' i na jej podstawie przewiduję przyszłość w klatce 'k+1'.
-for k in range(N_steps - 1):
+for k in range(1, len(t_vals)): # Rozpoczynamy główną pętlę "czasową". Kod w środku tej pętli powtórzy się tysiące razy, dla każdej jednej mikrosekundy symulacji.
+    t = t_vals[k-1] # Pobieramy z naszej gotowej listy czasu konkretną wartość ułamka sekundy dla obecnego obrotu pętli (np. t = 0.003501 sekundy).
+    t_in_period = t % T_sw # Wyciągamy resztę z dzielenia czasu przez 0.5ms (modulo). Dzięki temu wiemy zawsze, na jakim etapie tyknięcia metronomu teraz jesteśmy.
     
-    # Gdzie dokładnie jestem w obecnym cyklu PWM?
-    t_in_period = time[k] % T_sw
-    
-    # Jeśli mój czas jest w pierwszej połowie cyklu, włączam tranzystor (S = 1). Inaczej wyłączam (S = 0).
-    S = 1 if t_in_period < (Duty * T_sw) else 0
-    
-    # Równania różniczkowe - czyli liczenie "prędkości" zmian dla obecnej klatki.
-    if S == 1:
-        # STAN 1: TRANZYSTOR WŁĄCZONY. 
-        # Cewka jest ładowana z baterii. Kondensator jest odcięty i tylko oddaje prąd do obciążenia.
-        di_dt = (V_in - i_L[k] * R_L) / L
-        dv_dt = -v_C[k] / (R_eq * C)
-    else:
-        # STAN 2: TRANZYSTOR WYŁĄCZONY.
-        # Cewka oddaje zgromadzoną energię, pchając prąd prosto do kondensatora i obciążenia.
-        di_dt = (V_in - v_C[k] - i_L[k] * R_L) / L
-        dv_dt = (i_L[k] - v_C[k] / R_eq) / C
+    if t_in_period < D * T_sw: # Sprawdzamy czy obecny ułamek czasu tyknięcia jest mniejszy niż pierwsza połowa cyklu (czyli faza od 0 do 180 stopni z Gating Block).
+        S = 1 # Jeśli tak: ustawiamy nasz wirtualny tranzystor na logiczne 1. Dolny tranzystor zamyka się do masy i "pompuje" energię z zasilacza w cewkę.
+    else: # W przeciwnym wypadku (minęła pierwsza połowa i jesteśmy w fazie od 180 do 360 stopni z drugiego Gating Blocka)...
+        S = 0 # Ustawiamy tranzystor na 0. Dolny tranzystor puszcza, otwiera się górny. Cewka przestaje ssać prąd z zasilacza i wypluwa zgromadzoną energię w kondensator.
         
-    # METODA EULERA (Krok w przyszłość)
-    # Prosta zasada: Nowy stan = Stary stan + (Prędkość zmian * delta czasu).
-    i_L[k+1] = i_L[k] + di_dt * dt
-    v_C[k+1] = v_C[k] + dv_dt * dt
+    if S == 1: # Wchodzimy w prawa fizyki (Prawa Kirchhoffa). Jeśli układ ładuje cewkę:
+        di_L = (V_in - i_L * R_L) / L # Wyliczamy z jaką prędkością rośnie prąd: Napięcie 100V minus opór cieplny na drutach (i*R) podzielone przez fizyczną wielkość cewki (L).
+        dv_C = (-v_C / R_load) / C # Wyliczamy jak szybko napięcie spada: Kondensator oddaje zgromadzony prąd przez prawy opornik, więc jego wartość dzieli się przez pojemność.
+    else: # Fizyka dla S=0 (Faza "Boost" - wystrzał w stronę kondensatora):
+        di_L = (V_in - i_L * R_L - v_C) / L # Prędkość prądu teraz spada. Cewka napotyka potężny opór w postaci rosnącego napięcia ze wściekle ładującego się kondensatora (odjęto v_C).
+        dv_C = (i_L - v_C / R_load) / C # Napięcie na kondensatorze gwałtownie rośnie. Kondensator połyka potężny prąd z uderzającej cewki (i_L), trochę ucieka przez odbiornik (R_load).
+        
+    i_L += di_L * dt # Metoda Eulera. Aktualizujemy nasz prąd rzeczywisty: nowy prąd cewki = stary prąd + (wyliczona prędkość jego zmian * nasza mikrosekunda czasu dt).
+    v_C += dv_C * dt # To samo robimy dla napięcia. Nowe napięcie kondensatora = stare napięcie z ułamka sekundy wcześniej + (prędkość narastania napięcia * czas dt).
+    
+    i_L_vals[k] = i_L # Świeżutką, zaktualizowaną co do mikrosekundy wartość prądu cewki upychamy w naszej wielkiej tablicy pamięci pod odpowiednim punktem na osi czasu.
+    v_C_vals[k] = v_C # Zaktualizowane napięcie kondensatora logujemy bezpiecznie na swojej liście, żeby Matplotlib miał z czego narysować zaraz wykres V2.
 
-print("Koniec obliczeń. Generuję wykresy.")
+# ==============================================================================
+# 3. WCZYTANIE PLIKU Z PSIM (Do weryfikacji w locie tzw. Hardware-in-the-Loop)
+# ==============================================================================
+plik_csv = 'psim_wyniki.csv' # Tworzymy zmienną z dokładną nazwą pliku, do którego zapisałeś te dzikie dane wyplute z okna Simview (musi być w tym samym folderze).
+dane_psim_dostepne = False # Na start ustalamy flagę bezpieczeństwa na False, żeby kod nie próbował narysować czegoś z PSIM, jeśli zaraz okaże się, że zgubiłeś plik.
 
-# ==========================================
-# 5. WYKRESY
-# ==========================================
-plt.figure(figsize=(10, 6))
+if os.path.exists(plik_csv): # Używamy funkcji systemu operacyjnego i sprawdzamy, czy plik o takiej nazwie dosłownie istnieje tam, gdzie jest ten skrypt Pythona.
+    try: # Uruchamiamy tryb bezpieczny (try). Jeśli coś wybuchnie (np. zła nazwa sondy w pliku), program nie sypnie błędem w pół ekranu, tylko grzecznie ominie i napisze o co chodzi.
+        psim_df = pd.read_csv(plik_csv) # Biblioteka Pandas tworzy obiekt DataFrame (tabelę w pamięci RAM) wciągając do niej wszystkie tysiące wierszy z pliku z PSIM.
+        psim_df.columns = psim_df.columns.str.strip() # Magiczna sztuczka na błędy PSIM-a: ucina wszystkie przypadkowe spacje, którymi PSIM mógł otoczyć nazwy kolumn z sondami.
+        
+        t_psim = psim_df['Time'] # Wydobywamy z wczytanej tabeli Pandas dokładną oś czasu, którą stworzył PSIM (kolumna o nazwie 'Time') jako wzorzec referencyjny.
+        v_psim = psim_df['V2'] # Z tabeli wyciągamy przebieg napięcia. W pliku musi to być kolumna 'V2' (tak jak ustaliłeś przed chwilą nową sondę).
+        i_psim = psim_df['I(L7)'] # Z tej samej tabeli wyciągamy przebieg prądu z oryginalnej, zielonej cewki profesora (podpis w pliku to 'I(l7)').
+        dane_psim_dostepne = True # Plik zczytano perfekcyjnie. Zapalamy zielone światło (zmieniamy flagę na True), program nałoży teraz te linie z PSIM na nasze wykresy.
+        print("Pomyślnie wczytano dane z PSIM!") # Jeśli to widzisz w konsoli, oznacza to, że Pandas zeżarł plik i nazwy kolumn V2 i I(l7) zgadzają się co do litery.
+    except Exception as e: # Jeśli blok 'try' nie wypali (plik ucięty, inne nazwy sond)... wchodzimy tu, żeby pokazać Ci grzeczny, tekstowy komunikat awarii w konsoli.
+        print(f"Błąd podczas czytania CSV: {e}") # Printujemy w konsoli dokładnie techniczny błąd, przez który Pandas nie chciał wciągnąć Twoich kolumn z danymi.
+        print("Upewnij się, że plik ma kolumny: Time, V2, I(l7)") # Printujemy podpowiedź inżynierską. Jeśli nie chce czytać, prawdopodobnie PSIM zrobił inną nazwę sondy na górze pliku txt.
+else: # A jeśli funkcja systemowa sprawdzi folder i pliku w ogóle tam nie ma (np. nazwałeś go psim.csv zamiast psim_wyniki.csv)...
+    print(f"UWAGA: Nie znaleziono pliku '{plik_csv}' w folderze ze skryptem.") # ...wypisuje w konsoli, że plik wyparował i rysuje dane z samej matematyki.
+    print("Skrypt wygeneruje tylko wykresy z Pythona.") # Poinformowanie, że wykresy i tak się pokażą, tylko bez czarnych linii z PSIMa do porównania.
 
-# Wykres napięcia
-plt.subplot(2, 1, 1)
-plt.plot(time * 1000, v_C, label='Napięcie kondensatora ($V_C$)', color='#0052cc', linewidth=1.5)
-plt.title('Bliźniak Cyfrowy: Otwarta Pętla (Fizyka bez sterownika)')
-plt.ylabel('Napięcie [V]')
-plt.grid(True, linestyle='--', alpha=0.7)
-plt.legend(loc='upper right')
+# ==============================================================================
+# 4. RYSOWANIE WYKRESÓW (Nakładanie linii w Pythonie w okienku Matplotlib)
+# ==============================================================================
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True) # Tworzymy główne okno Windowsa/Maca o wymiarach 10x8 cali, podzielone na 2 panele (góra napięcie, dół prąd) ze wspólną osią osi (sharex).
 
-# Wykres prądu
-plt.subplot(2, 1, 2)
-plt.plot(time * 1000, i_L, label='Prąd cewki ($I_L$)', color='#d63031', linewidth=1.5)
-plt.xlabel('Czas [ms]')
-plt.ylabel('Prąd [A]')
-plt.grid(True, linestyle='--', alpha=0.7)
-plt.legend(loc='lower right')
+# GÓRA: Panel z wykresem ładującego się NAPIĘCIA na kondensatorze.
+ax1.plot(t_vals, v_C_vals, 'r', linewidth=3, label='Python (Model Matematyczny)') # Na panelu ax1 malujemy nasz wyliczony z pętli v_C_vals używając koloru czerwonego (r) i grubej linii 3 piksele.
+if dane_psim_dostepne: # Sprawdzamy, czy nasze zielone światło z wgrywania z pliku się świeci (czyli plik PSIM działa poprawnie).
+    ax1.plot(t_psim, v_psim, 'k--', linewidth=2, label='PSIM (Sonda V2)') # Jeśli tak, na tej samej osi nakładamy wykres z PSIM (v_psim). Używamy koloru czarnego (k) o przerywanej teksturze (--) i mniejszej grubości.
+ax1.set_ylabel('Napięcie [V]') # Wstawiamy napis w pionie po lewej stronie tego okienka, żeby jasno było zaznaczone, że operujemy tu w Voltach.
+ax1.set_title('Porównanie napięcia na kondensatorze (v_C)') # Piszemy u góry pierwszego wykresu wielki tytuł określający cel tego zestawienia.
+ax1.grid(True) # Odpalamy szarą kratkę siatki w tle za wykresem. Zdecydowanie pomaga inżyniersko ocenić wartości bez mierzenia linijką ekranu.
+ax1.legend() # Zlecamy narysowanie małego pudełka (legendy), które tłumaczy co to za czerwona gruba linia a co czarna przerywana, żeby było wiadomo co jest z Pythona a co z PSIM.
 
-plt.tight_layout()
-plt.show()
+# DÓŁ: Panel z wykresem falującego, poszarpanego PRĄDU cewki.
+ax2.plot(t_vals, i_L_vals, 'g', linewidth=3, label='Python (Model Matematyczny)') # Na dolnym panelu ax2 wylewamy nasz wyliczony prąd. Kolor zielony (g), gruby pędzel na 3 piksele. Pokaże nasze zęby prądowe.
+if dane_psim_dostepne: # Znowu sprawdzamy, czy zassało poprawnie referencyjne pliki od profesora z CSV.
+    ax2.plot(t_psim, i_psim, 'k--', linewidth=2, label='PSIM (Sonda I(l7))') # Rysujemy to, co wyciągnęło z prądowej kolumny I(l7) jako cieńszą (2px), czarną przerywaną kreskę. Ma wejść pod naszą zieloną.
+ax2.set_ylabel('Prąd [A]') # Wstawiamy opis osi pionowej dolnego panelu - to jest prąd liczony w Amperach.
+ax2.set_xlabel('Czas [s]') # Ustawiamy główną oś X widoczną na samym dole jako upływające sekundy. Ze względu na wczesny sharex, steruje ona górnym i dolnym obrazkiem naraz.
+ax2.set_title('Porównanie prądu cewki (i_L)') # Wstawiamy duży, informacyjny tytuł również nad dolnym panelem symulacji prądowej.
+ax2.grid(True) # Odpalamy znowu siatkę koordynatów w tle, żeby łatwo sprawdzić pik prądu w danym miejscu w czasie (bez tej siatki odczyty z pustego białego ekranu byłyby zgadywanką).
+ax2.legend() # I znów budujemy małą tabelkę z opisem linii dla ułatwienia odczytu (co to za linia Pythonowa i PSIMowa w dolnej połówce okna).
+
+plt.tight_layout() # Magiczny kod Matplotliba naprawiający wizualia. Sprawia on, że teksty, tytuły i osie nie najeżdżają i nie gryzą się na siebie nawzajem (automatyczne marginesy).
+plt.show() # I ostateczny strzał. Ten guzik kompiluje wszystkie te powyższe wykresy do kupy i otwiera na Twoim ekranie dedykowane, wyskakujące okno z wizualizacją. Gotowe!
