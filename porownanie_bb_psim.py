@@ -4,9 +4,10 @@ porownanie_bb_psim.py — nakładanie przebiegów Python (MF-BB) na referencję 
 Wczytuje psim_bb_wyniki.txt (9 kolumn: Time, I(L7), i_out_M_BB1, udc_BB1, i_pred_BB1,
 iL_BB1, Uref_BB1, pwmBB1, i_ref_BB1), uruchamia identyczny algorytm MF-BB w Pythonie
 z parametrami fizycznymi PSIM (R_L=0.05Ω, ESR cewki) i generuje wykres porównawczy
-zapisywany do wykres_bb_psim_comparison.png.
+zapisywany do porownanie_bb_python_vs_psim.png.
 
-Backend Matplotlib ustawiony na "Agg" — działa bez wyświetlania okna (CI/headless).
+To skrypt produkujący WYKRES FINALNY (do prezentacji dla promotora) — backend
+Matplotlib ustawiony na "Agg", więc działa bez wyświetlania okna (CI/headless).
 Mierzy MAE prądu cewki i napięcia wyjściowego jako liczbową miarę zgodności
 (Krok 2.5: ~2.3 V napięcia — patrz CLAUDE_CONTEXT.md).
 """
