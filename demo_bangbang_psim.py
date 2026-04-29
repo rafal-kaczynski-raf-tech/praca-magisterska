@@ -1,3 +1,14 @@
+"""
+demo_bangbang_psim.py — replikacja sterownika MF-BB 1:1 wg PSIM (Krok 2.5).
+
+Wersja zwalidowana z C-blockiem PSIM: identyczny algorytm bang-bang, identyczne
+parametry filtru LP (alpha=0.01, beta=0.98), R_L=0 (PSIM domyślnie bez ESR cewki),
+T_s_ctrl=10 µs, u_ref=240 V (stałe). Cel: dopasować przebiegi Pythona do PSIM
+możliwie dokładnie, jako punkt odniesienia dla późniejszych eksperymentów PSO.
+
+Plik samodzielnie uruchamia symulację — nie czyta danych PSIM (zostawione to
+porownanie_bb_psim.py). Wyniki należy zapisać i nałożyć osobnym narzędziem.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 

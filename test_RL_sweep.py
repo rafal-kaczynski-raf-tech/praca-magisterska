@@ -1,5 +1,13 @@
 """
-Test różnych R_L (rezystancji szeregowej cewki) - czy PSIM ma większe straty?
+test_RL_sweep.py — sweep rezystancji szeregowej cewki R_L (Krok 2.5, kalibracja).
+
+Diagnostyka rozbieżności Python vs PSIM w sterowaniu MF-BB. Hipoteza: PSIM ma
+nieoczywiste straty omowe pomimo nominalnego R_L=0. Skrypt uruchamia symulację
+MF-BB dla wachlarza wartości R_L i porównuje każdy wariant z psim_bb_wyniki.txt
+celem znalezienia R_L minimalizującego MAE napięcia wyjściowego.
+
+Użyteczny jako narzędzie zatwierdzania parametrów pasożytniczych przed
+rozpoczęciem strojenia PSO.
 """
 import numpy as np
 

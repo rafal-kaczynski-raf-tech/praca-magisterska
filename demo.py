@@ -1,3 +1,15 @@
+"""
+demo.py — silnik fizyczny przetwornicy boost DC-DC w otwartej pętli (Krok 1).
+
+Numeryczna symulacja obwodu boost (V_in=100V, L=0.75mH, R_L=0.05Ω, C=200µF, R=50Ω)
+sterowanego stałym PWM (f_sw=2kHz, D=0.5) metodą Eulera z krokiem dt=1µs przez 10 ms.
+Brak sprzężenia zwrotnego — układ otwartej pętli, weryfikujący jedynie poprawność
+modelu fizycznego (równania stanu cewki i kondensatora dla obu pozycji klucza).
+
+Walidacja: nakłada przebiegi i_L i u_C na dane referencyjne z PSIM wczytane
+z `psim_wyniki.csv` (kolumny: Time, I(L7), I2, V2). Wynik graficzny stanowi
+empiryczny dowód poprawności silnika fizycznego dla pracy magisterskiej.
+"""
 import numpy as np          # NumPy - biblioteka do obliczeń matematycznych, tworzy tablice liczb
 import matplotlib.pyplot as plt  # Matplotlib - biblioteka do rysowania wykresów
 import pandas as pd         # Pandas - biblioteka do wczytywania plików CSV (tabelek z danymi)

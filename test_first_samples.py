@@ -1,5 +1,16 @@
 """
-Porównaj pierwsze 10 próbek PSIM vs Python żeby znaleźć źródło rozbieżności.
+test_first_samples.py — analiza pierwszych 12 próbek PSIM vs Python (Krok 2.5).
+
+Diagnoza rozbieżności w stanie przejściowym sterownika MF-BB. Porównuje próbka po
+próbce wyniki PSIM (psim_bb_wyniki.txt, pierwsze 12 wierszy) i Python dla różnych
+konfiguracji eksperymentalnych:
+
+  - record_when:    'before_physics' vs 'after_physics' (kolejność zapis/symulacja)
+  - initial_s:      0 (klucz OFF) vs 1 (klucz ON) na starcie
+
+Cel: ustalić w jakim wariancie konwencji zapisu i stanu początkowego klucza
+symulacja Python dokładnie odtwarza pierwsze próbki referencyjne z PSIM
+(walidacja drobnych szczegółów implementacyjnych C-blocku PSIM).
 """
 import numpy as np
 

@@ -1,6 +1,13 @@
 """
-Test różnych dt (krok czasowy fizyki) przy stałym T_s_ctrl=10µs.
-Sprawdzamy które daje najlepsze dopasowanie do PSIM.
+test_dt_sweep.py — sweep kroku całkowania dt przy stałym T_s_ctrl=10µs (Krok 2.5).
+
+Diagnostyka wpływu dyskretyzacji metody Eulera na zgodność z PSIM. Skrypt uruchamia
+symulację MF-BB dla różnych wartości dt (1µs, 5µs, 10µs, ...) zachowując stały okres
+sterowania T_s_ctrl=10µs (separacja dyskretyzacji fizyki od dyskretyzacji sterownika)
+i porównuje każdy wariant z psim_bb_wyniki.txt.
+
+Cel: znaleźć dt dające najlepsze dopasowanie do PSIM przy akceptowalnym koszcie
+obliczeniowym — ważne przed pętlą PSO, gdzie dt determinuje czas całej optymalizacji.
 """
 import numpy as np
 
