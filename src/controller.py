@@ -52,6 +52,7 @@ class MFBBController:
         self.i_old: float = 0.0
         self.s_old: int = 0
         self.uout_old: float = converter_params.v_C0
+        self.u_ref: float = params.u_ref  # mutable - moze byc zmienione w runtime (scenariusz)
 
     def tick(self, t_now: float, i_act: float, uout_act: float) -> ControllerOutput:
         """Jeden krok sterownika.  Zwraca dane do logowania, aktualizuje stan wewn."""
@@ -68,10 +69,10 @@ class MFBBController:
         iout_filt = self.lpf.process(iout_est)
 
         # Bilans mocy - prąd zadany
-        i_des = iout_filt * p.u_ref / self.V_in
+        i_des = iout_filt * self.u_ref / self.V_in
 
         # Funkcja przelaczajaca
-        error_u = p.u_ref - uout_act
+        error_u = self.u_ref - uout_act
         error_i = i_des - i_act
         s_new = 1 if (error_u + p.wi * error_i) > 0 else 0
 

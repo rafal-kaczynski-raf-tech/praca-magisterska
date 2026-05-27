@@ -5,6 +5,20 @@ w trakcie symulacji.  Domyslne wartosci = stan PSIM dla Kroku 2.6.
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from typing import Optional
+
+
+@dataclass(frozen=True)
+class Scenario:
+    """Opcjonalne zdarzenia w trakcie symulacji (skok obciazenia, skok referencji).
+
+    Pola None = brak zdarzenia. Pozwala wymusic trudniejszy scenariusz testowy
+    (load step + reference step) bez modyfikacji parametrow obwodu.
+    """
+    load_step_time: Optional[float] = None    # [s] moment skoku obciazenia
+    load_step_R: Optional[float] = None       # [Ohm] nowa wartosc R_load po skoku
+    ref_step_time: Optional[float] = None     # [s] moment skoku referencji
+    ref_step_value: Optional[float] = None    # [V] nowa wartosc u_ref po skoku
 
 
 @dataclass(frozen=True)
@@ -36,6 +50,7 @@ class SimulationConfig:
     controller: ControllerParams
     dt_phys: float = 0.5e-6    # krok fizyki [s]
     T_end: float = 0.10        # czas symulacji [s]
+    scenario: Optional[Scenario] = None  # None = brak zdarzen (default behaviour)
 
     @property
     def fs_lpf(self) -> float:

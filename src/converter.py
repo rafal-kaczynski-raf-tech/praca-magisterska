@@ -20,6 +20,7 @@ class Converter:
         self.p = params
         self.i_L: float = params.i_L0
         self.v_C: float = params.v_C0
+        self.R_load: float = params.R_load  # mutable - moze byc zmienione w runtime (scenariusz)
 
     def step(self, s: int, dt: float) -> None:
         """Jeden krok Eulera w przod przy stanie klucza s.
@@ -29,6 +30,6 @@ class Converter:
         """
         p = self.p
         v_L = p.V_in - (1.0 - s) * self.v_C - p.R_L * self.i_L
-        i_C = (1.0 - s) * self.i_L - self.v_C / p.R_load
+        i_C = (1.0 - s) * self.i_L - self.v_C / self.R_load
         self.i_L = self.i_L + v_L / p.L * dt
         self.v_C = self.v_C + i_C / p.C * dt

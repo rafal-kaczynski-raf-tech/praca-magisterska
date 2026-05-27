@@ -61,11 +61,24 @@ class Simulator:
 
         ctrl_idx = 0
 
+        # Cache flag scenariusza (zeby kazdy event byl aplikowany dokladnie raz)
+        scn = cfg.scenario
+        load_done = scn is None or scn.load_step_time is None
+        ref_done = scn is None or scn.ref_step_time is None
+
         for k in range(1, N_steps + 1):
             t_now = k * dt
 
             # Tick sterownika co N_per_ctrl krokow fizyki (1:1 z proceduralna wersja)
             if (k - 1) % N_per_ctrl == 0:
+                # Aplikuj zdarzenia scenariusza PRZED tickiem (jesli juz nadszedl ich czas)
+                if not load_done and t_now >= scn.load_step_time:
+                    self.converter.R_load = scn.load_step_R
+                    load_done = True
+                if not ref_done and t_now >= scn.ref_step_time:
+                    self.controller.u_ref = scn.ref_step_value
+                    ref_done = True
+
                 i_act, uout_act = self.sampler.read()
                 out = self.controller.tick(t_now, i_act, uout_act)
 
