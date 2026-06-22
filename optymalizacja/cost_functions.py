@@ -106,6 +106,48 @@ def current_aware(t, u_dc, i_L, s, u_ref, i_des=None, lam: float = LAMBDA_I) -> 
     return j_u + lam * j_i
 
 
+# Waga czlonu oscylacyjnego (wariant 2 prof. Iwanskiego).
+# Strojona recznie, by IAE napiecia i kara oscylacji mialy podobny rzad wielkosci.
+MU_OSC = 0.02
+OSC_WINDOW = 4   # liczba kolejnych probek w oknie (sugestia prof.: ~4)
+
+
+def current_oscillation(t, u_dc, i_L, s, u_ref, iL_ctrl=None,
+                        mu: float = MU_OSC, window: int = OSC_WINDOW) -> float:
+    """Wariant 2 (wg uwag prof. Iwanskiego): kara za krotkoterminowe oscylacje pradu.
+
+        J = IAE_u + mu * srednia_po_oknach( (max - min w oknie 4 probek)^2 )
+
+    Czlon oscylacyjny to ROZSTEP (max-min) pradu w przesuwnym oknie 4 kolejnych
+    probek w takcie sterownika (iL_ctrl) - dokladnie "roznice z czterech
+    kolejnych probek", o ktorych pisal prof. Iwanski. Mierzy lokalne wahanie
+    pradu (amplitude drzenia z probki na probke).
+
+    Dlaczego okno, a nie pelny horyzont (jak wariant 1)? Bo miara lokalna jest
+    prawie nieczula na powolny, celowy narost pradu podczas skoku referencji
+    (w oknie 40 us prad zmienia sie nieznacznie), a silnie reaguje na szybkie
+    oscylacje. Dzieki temu wariant 2 omija pulapke, na ktora wskazal profesor:
+    nie karze reakcji na pradzie maksymalnym, tylko niepotrzebne oscylacje.
+
+    Uwaga (do uzgodnienia z prof.): empirycznie sama 1./2. roznica probek nie
+    rozroznia rozwiazan (aliasing ripple przy takcie 10 us); dopiero rozstep w
+    oknie 4 probek poprawnie wskazuje rozwiazania o duzej amplitudzie wahan.
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    j_u = float(np.trapezoid(np.abs(u_dc - u_ref_arr), t))   # IAE napiecia
+    if iL_ctrl is None:
+        return j_u
+    c = np.asarray(iL_ctrl, dtype=float)
+    w = int(window)
+    if c.size < w:
+        return j_u
+    # przesuwne okno dlugosci w: rozstep (max - min) w kazdym oknie
+    win = np.lib.stride_tricks.sliding_window_view(c, w)      # (N-w+1, w)
+    spread = win.max(axis=1) - win.min(axis=1)               # lokalny rozstep
+    j_osc = float(np.mean(spread ** 2))                       # srednia kwadratu
+    return j_u + mu * j_osc
+
+
 # Rejestr funkcji celu -- klucz uzywany w raportach i kolumnach tabel
 COST_FUNCTIONS = {
     "MSE": mse,
@@ -114,7 +156,11 @@ COST_FUNCTIONS = {
     "Asymmetric": asymmetric,
     "Composite": composite,
     "CurrentAware": current_aware,
+    "CurrentOscillation": current_oscillation,
 }
 
 # Funkcje celu wymagajace i_des (uchyb sledzenia pradu) - obsluga w pso.evaluate
 CURRENT_AWARE = {"CurrentAware"}
+
+# Funkcje celu wymagajace pradu w takcie sterownika (iL_ctrl) - druga roznica
+OSCILLATION_AWARE = {"CurrentOscillation"}

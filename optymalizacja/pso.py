@@ -32,7 +32,7 @@ from dataclasses import replace
 
 from src.config import default_config
 from src.simulator import Simulator
-from optymalizacja.cost_functions import COST_FUNCTIONS, CURRENT_AWARE
+from optymalizacja.cost_functions import COST_FUNCTIONS, CURRENT_AWARE, OSCILLATION_AWARE
 from optymalizacja import metrics
 from optymalizacja.scenarios import hard_scenario, HARD_T_END
 
@@ -83,6 +83,9 @@ def evaluate(log_wi: float, log_fc: float, cost_name: str = COST_NAME) -> float:
     if cost_name in CURRENT_AWARE:
         return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr,
                   i_des=res["i_des_phys"])
+    if cost_name in OSCILLATION_AWARE:
+        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr,
+                  iL_ctrl=res["iL_sample"])
     return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr)
 
 
