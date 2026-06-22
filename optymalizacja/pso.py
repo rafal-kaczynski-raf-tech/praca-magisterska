@@ -62,6 +62,9 @@ def _build_u_ref_arr(t: np.ndarray, u_ref0: float, scn) -> np.ndarray:
     if scn is not None and scn.ref_step_time is not None:
         mask = t >= scn.ref_step_time
         u_ref_arr[mask] = scn.ref_step_value
+    if scn is not None and getattr(scn, "ref_pulses", None) is not None:
+        for t_p, u_p in scn.ref_pulses:
+            u_ref_arr[t >= t_p] = u_p
     return u_ref_arr
 
 

@@ -68,6 +68,8 @@ class Simulator:
         scn = cfg.scenario
         load_done = scn is None or scn.load_step_time is None
         ref_done = scn is None or scn.ref_step_time is None
+        ref_pulses = None if scn is None else scn.ref_pulses
+        pulse_idx = 0
 
         for k in range(1, N_steps + 1):
             t_now = k * dt
@@ -81,6 +83,11 @@ class Simulator:
                 if not ref_done and t_now >= scn.ref_step_time:
                     self.controller.u_ref = scn.ref_step_value
                     ref_done = True
+                if ref_pulses is not None:
+                    while (pulse_idx < len(ref_pulses)
+                           and t_now >= ref_pulses[pulse_idx][0]):
+                        self.controller.u_ref = ref_pulses[pulse_idx][1]
+                        pulse_idx += 1
 
                 i_act, uout_act = self.sampler.read()
                 out = self.controller.tick(t_now, i_act, uout_act)

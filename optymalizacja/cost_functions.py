@@ -148,6 +148,34 @@ def current_oscillation(t, u_dc, i_L, s, u_ref, iL_ctrl=None,
     return j_u + mu * j_osc
 
 
+# Waga kary za MAGNITUDE pradu (wariant 3 - "pulapka na zywo").
+# Strojona recznie, by uchwycic moment, w ktorym optymalizator zaczyna
+# poswiecac regulacje napiecia, byle zmniejszyc prad.
+GAMMA_EFFORT = 0.02
+
+
+def current_effort(t, u_dc, i_L, s, u_ref, gamma: float = GAMMA_EFFORT) -> float:
+    """Wariant 3 (kontrprzyklad): kara za MAGNITUDE pradu (wysilek sterowania).
+
+        J = IAE_u + gamma * integral( i_L^2 ) dt
+
+    Klasyczny czlon "control effort" (jak w regulatorze LQR) na pradzie cewki.
+    W przeciwienstwie do wariantow 1 i 2 (kara za UCHYB/oscylacje, ktore daja
+    sie "oszukac" agresywnym i_des) tutaj karzemy BEZWZGLEDNA wartosc pradu.
+
+    To celowy kontrprzyklad - pokazuje "pulapke" prof. Iwanskiego NA ZYWO:
+    pradu w stanie ustalonym NIE da sie obnizyc inaczej niz rezygnujac z
+    dostarczania mocy (bilans: i_in = P/V_in = u_dc^2/(R*V_in)). Wraz ze
+    wzrostem gamma optymalizator zaczyna wiec CELOWO niedoregulowywac napiecie
+    (wieksze e_ss), byle zmniejszyc prad - dokladnie ta degeneracja, przed
+    ktora ostrzegal profesor, gdy kryterium ignoruje sens fizyczny pradu.
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    j_u = float(np.trapezoid(np.abs(u_dc - u_ref_arr), t))   # IAE napiecia
+    j_eff = float(np.trapezoid(np.asarray(i_L, dtype=float) ** 2, t))  # ISE pradu
+    return j_u + gamma * j_eff
+
+
 # Rejestr funkcji celu -- klucz uzywany w raportach i kolumnach tabel
 COST_FUNCTIONS = {
     "MSE": mse,
@@ -157,6 +185,7 @@ COST_FUNCTIONS = {
     "Composite": composite,
     "CurrentAware": current_aware,
     "CurrentOscillation": current_oscillation,
+    "CurrentEffort": current_effort,
 }
 
 # Funkcje celu wymagajace i_des (uchyb sledzenia pradu) - obsluga w pso.evaluate
@@ -164,3 +193,6 @@ CURRENT_AWARE = {"CurrentAware"}
 
 # Funkcje celu wymagajace pradu w takcie sterownika (iL_ctrl) - druga roznica
 OSCILLATION_AWARE = {"CurrentOscillation"}
+
+# Funkcje celu karzace NADMIAR pradu (wymagaja i_des) - obsluga w pso.evaluate
+CURRENT_EFFORT = {"CurrentEffort"}
