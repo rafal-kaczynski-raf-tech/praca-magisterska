@@ -75,6 +75,37 @@ def composite(t, u_dc, i_L, s, u_ref,
     return alpha_ts * t_s + beta_mp * M_p + gamma_ess * e_ss
 
 
+# Waga czlonu pradowego w funkcji celu swiadomej pradu (wariant 1 prof. Iwanskiego).
+# Dobrana tak, by IAE napiecia i IAE pradu mialy podobny rzad wielkosci.
+# Strojona recznie - to wybor "fizyczny" (jak wazny jest prad wzgledem napiecia).
+LAMBDA_I = 1.0
+
+
+def current_aware(t, u_dc, i_L, s, u_ref, i_des=None, lam: float = LAMBDA_I) -> float:
+    """Wariant 1 (wg uwag prof. Iwanskiego): laczy uchyb napiecia i pradu.
+
+        J = IAE_u + lam * IAE_i
+        IAE_u = integral |u_ref - u_dc| dt          (uchyb napiecia)
+        IAE_i = integral |i_des - i_L| dt           (uchyb sledzenia pradu)
+
+    Uchyb pradu liczony jako roznica miedzy pradem pozadanym cewki (i_des,
+    z bilansu mocy w sterowniku) a pradem mierzonym (i_L).
+
+    UWAGA (pulapka stanu przejsciowego): podczas skoku referencji uklad
+    CELOWO podaza za pradem maksymalnym, nie za i_des -> uchyb pradu jest tam
+    duzy z definicji. Ten wariant kara go mimo to (pelny horyzont). Sluzy
+    wlasnie do zaobserwowania tego efektu, zgodnie z sugestia prof. Iwanskiego;
+    wariant 2 (penalizacja krotkoterminowych oscylacji) omija ta pulapke.
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    j_u = float(np.trapezoid(np.abs(u_dc - u_ref_arr), t))   # IAE napiecia
+    if i_des is None:
+        return j_u
+    e_i = np.asarray(i_des, dtype=float) - i_L
+    j_i = float(np.trapezoid(np.abs(e_i), t))                # IAE pradu
+    return j_u + lam * j_i
+
+
 # Rejestr funkcji celu -- klucz uzywany w raportach i kolumnach tabel
 COST_FUNCTIONS = {
     "MSE": mse,
@@ -82,4 +113,8 @@ COST_FUNCTIONS = {
     "ITAE": itae,
     "Asymmetric": asymmetric,
     "Composite": composite,
+    "CurrentAware": current_aware,
 }
+
+# Funkcje celu wymagajace i_des (uchyb sledzenia pradu) - obsluga w pso.evaluate
+CURRENT_AWARE = {"CurrentAware"}

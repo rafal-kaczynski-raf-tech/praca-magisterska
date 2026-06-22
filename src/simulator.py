@@ -42,6 +42,8 @@ class Simulator:
         iL_arr = np.zeros(N_steps + 1)
         vC_arr = np.zeros(N_steps + 1)
         s_arr = np.zeros(N_steps + 1, dtype=np.int8)
+        # i_des rozciagniete na siatke fizyki (ZOH - trzymane miedzy tickami)
+        i_des_phys_arr = np.zeros(N_steps + 1)
 
         # Bufory sterownika
         n_ctrl = N_steps // N_per_ctrl + 1
@@ -60,6 +62,7 @@ class Simulator:
         s_arr[0] = self.controller.s_current  # = 0
 
         ctrl_idx = 0
+        i_des_current = 0.0   # ostatnio policzony i_des (ZOH na siatke fizyki)
 
         # Cache flag scenariusza (zeby kazdy event byl aplikowany dokladnie raz)
         scn = cfg.scenario
@@ -86,6 +89,7 @@ class Simulator:
                 iout_est_arr[ctrl_idx] = out.iout_est
                 iout_filt_arr[ctrl_idx] = out.iout_filt
                 i_des_arr[ctrl_idx] = out.i_des
+                i_des_current = out.i_des
                 error_u_arr[ctrl_idx] = out.error_u
                 error_i_arr[ctrl_idx] = out.error_i
                 iL_sample_arr[ctrl_idx] = i_act
@@ -101,6 +105,7 @@ class Simulator:
             iL_arr[k] = self.converter.i_L
             vC_arr[k] = self.converter.v_C
             s_arr[k] = self.controller.s_current
+            i_des_phys_arr[k] = i_des_current
 
         return {
             "t": t_arr,
@@ -111,6 +116,7 @@ class Simulator:
             "iout_est": iout_est_arr[:ctrl_idx],
             "iout_filt": iout_filt_arr[:ctrl_idx],
             "i_des": i_des_arr[:ctrl_idx],
+            "i_des_phys": i_des_phys_arr,
             "error_u": error_u_arr[:ctrl_idx],
             "error_i": error_i_arr[:ctrl_idx],
             "iL_sample": iL_sample_arr[:ctrl_idx],

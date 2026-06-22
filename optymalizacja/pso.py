@@ -32,7 +32,7 @@ from dataclasses import replace
 
 from src.config import default_config
 from src.simulator import Simulator
-from optymalizacja.cost_functions import COST_FUNCTIONS
+from optymalizacja.cost_functions import COST_FUNCTIONS, CURRENT_AWARE
 from optymalizacja import metrics
 from optymalizacja.scenarios import hard_scenario, HARD_T_END
 
@@ -80,6 +80,9 @@ def evaluate(log_wi: float, log_fc: float, cost_name: str = COST_NAME) -> float:
     u_ref_arr = _build_u_ref_arr(t, cfg.controller.u_ref, SCENARIO)
 
     fn = COST_FUNCTIONS[cost_name]
+    if cost_name in CURRENT_AWARE:
+        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr,
+                  i_des=res["i_des_phys"])
     return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr)
 
 
