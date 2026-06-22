@@ -75,6 +75,107 @@ def composite(t, u_dc, i_L, s, u_ref,
     return alpha_ts * t_s + beta_mp * M_p + gamma_ess * e_ss
 
 
+# Waga czlonu pradowego w funkcji celu swiadomej pradu (wariant 1 prof. Iwanskiego).
+# Dobrana tak, by IAE napiecia i IAE pradu mialy podobny rzad wielkosci.
+# Strojona recznie - to wybor "fizyczny" (jak wazny jest prad wzgledem napiecia).
+LAMBDA_I = 1.0
+
+
+def current_aware(t, u_dc, i_L, s, u_ref, i_des=None, lam: float = LAMBDA_I) -> float:
+    """Wariant 1 (wg uwag prof. Iwanskiego): laczy uchyb napiecia i pradu.
+
+        J = IAE_u + lam * IAE_i
+        IAE_u = integral |u_ref - u_dc| dt          (uchyb napiecia)
+        IAE_i = integral |i_des - i_L| dt           (uchyb sledzenia pradu)
+
+    Uchyb pradu liczony jako roznica miedzy pradem pozadanym cewki (i_des,
+    z bilansu mocy w sterowniku) a pradem mierzonym (i_L).
+
+    UWAGA (pulapka stanu przejsciowego): podczas skoku referencji uklad
+    CELOWO podaza za pradem maksymalnym, nie za i_des -> uchyb pradu jest tam
+    duzy z definicji. Ten wariant kara go mimo to (pelny horyzont). Sluzy
+    wlasnie do zaobserwowania tego efektu, zgodnie z sugestia prof. Iwanskiego;
+    wariant 2 (penalizacja krotkoterminowych oscylacji) omija ta pulapke.
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    j_u = float(np.trapezoid(np.abs(u_dc - u_ref_arr), t))   # IAE napiecia
+    if i_des is None:
+        return j_u
+    e_i = np.asarray(i_des, dtype=float) - i_L
+    j_i = float(np.trapezoid(np.abs(e_i), t))                # IAE pradu
+    return j_u + lam * j_i
+
+
+# Waga czlonu oscylacyjnego (wariant 2 prof. Iwanskiego).
+# Strojona recznie, by IAE napiecia i kara oscylacji mialy podobny rzad wielkosci.
+MU_OSC = 0.02
+OSC_WINDOW = 4   # liczba kolejnych probek w oknie (sugestia prof.: ~4)
+
+
+def current_oscillation(t, u_dc, i_L, s, u_ref, iL_ctrl=None,
+                        mu: float = MU_OSC, window: int = OSC_WINDOW) -> float:
+    """Wariant 2 (wg uwag prof. Iwanskiego): kara za krotkoterminowe oscylacje pradu.
+
+        J = IAE_u + mu * srednia_po_oknach( (max - min w oknie 4 probek)^2 )
+
+    Czlon oscylacyjny to ROZSTEP (max-min) pradu w przesuwnym oknie 4 kolejnych
+    probek w takcie sterownika (iL_ctrl) - dokladnie "roznice z czterech
+    kolejnych probek", o ktorych pisal prof. Iwanski. Mierzy lokalne wahanie
+    pradu (amplitude drzenia z probki na probke).
+
+    Dlaczego okno, a nie pelny horyzont (jak wariant 1)? Bo miara lokalna jest
+    prawie nieczula na powolny, celowy narost pradu podczas skoku referencji
+    (w oknie 40 us prad zmienia sie nieznacznie), a silnie reaguje na szybkie
+    oscylacje. Dzieki temu wariant 2 omija pulapke, na ktora wskazal profesor:
+    nie karze reakcji na pradzie maksymalnym, tylko niepotrzebne oscylacje.
+
+    Uwaga (do uzgodnienia z prof.): empirycznie sama 1./2. roznica probek nie
+    rozroznia rozwiazan (aliasing ripple przy takcie 10 us); dopiero rozstep w
+    oknie 4 probek poprawnie wskazuje rozwiazania o duzej amplitudzie wahan.
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    j_u = float(np.trapezoid(np.abs(u_dc - u_ref_arr), t))   # IAE napiecia
+    if iL_ctrl is None:
+        return j_u
+    c = np.asarray(iL_ctrl, dtype=float)
+    w = int(window)
+    if c.size < w:
+        return j_u
+    # przesuwne okno dlugosci w: rozstep (max - min) w kazdym oknie
+    win = np.lib.stride_tricks.sliding_window_view(c, w)      # (N-w+1, w)
+    spread = win.max(axis=1) - win.min(axis=1)               # lokalny rozstep
+    j_osc = float(np.mean(spread ** 2))                       # srednia kwadratu
+    return j_u + mu * j_osc
+
+
+# Waga kary za MAGNITUDE pradu (wariant 3 - "pulapka na zywo").
+# Strojona recznie, by uchwycic moment, w ktorym optymalizator zaczyna
+# poswiecac regulacje napiecia, byle zmniejszyc prad.
+GAMMA_EFFORT = 0.02
+
+
+def current_effort(t, u_dc, i_L, s, u_ref, gamma: float = GAMMA_EFFORT) -> float:
+    """Wariant 3 (kontrprzyklad): kara za MAGNITUDE pradu (wysilek sterowania).
+
+        J = IAE_u + gamma * integral( i_L^2 ) dt
+
+    Klasyczny czlon "control effort" (jak w regulatorze LQR) na pradzie cewki.
+    W przeciwienstwie do wariantow 1 i 2 (kara za UCHYB/oscylacje, ktore daja
+    sie "oszukac" agresywnym i_des) tutaj karzemy BEZWZGLEDNA wartosc pradu.
+
+    To celowy kontrprzyklad - pokazuje "pulapke" prof. Iwanskiego NA ZYWO:
+    pradu w stanie ustalonym NIE da sie obnizyc inaczej niz rezygnujac z
+    dostarczania mocy (bilans: i_in = P/V_in = u_dc^2/(R*V_in)). Wraz ze
+    wzrostem gamma optymalizator zaczyna wiec CELOWO niedoregulowywac napiecie
+    (wieksze e_ss), byle zmniejszyc prad - dokladnie ta degeneracja, przed
+    ktora ostrzegal profesor, gdy kryterium ignoruje sens fizyczny pradu.
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    j_u = float(np.trapezoid(np.abs(u_dc - u_ref_arr), t))   # IAE napiecia
+    j_eff = float(np.trapezoid(np.asarray(i_L, dtype=float) ** 2, t))  # ISE pradu
+    return j_u + gamma * j_eff
+
+
 # Rejestr funkcji celu -- klucz uzywany w raportach i kolumnach tabel
 COST_FUNCTIONS = {
     "MSE": mse,
@@ -82,4 +183,16 @@ COST_FUNCTIONS = {
     "ITAE": itae,
     "Asymmetric": asymmetric,
     "Composite": composite,
+    "CurrentAware": current_aware,
+    "CurrentOscillation": current_oscillation,
+    "CurrentEffort": current_effort,
 }
+
+# Funkcje celu wymagajace i_des (uchyb sledzenia pradu) - obsluga w pso.evaluate
+CURRENT_AWARE = {"CurrentAware"}
+
+# Funkcje celu wymagajace pradu w takcie sterownika (iL_ctrl) - druga roznica
+OSCILLATION_AWARE = {"CurrentOscillation"}
+
+# Funkcje celu karzace NADMIAR pradu (wymagaja i_des) - obsluga w pso.evaluate
+CURRENT_EFFORT = {"CurrentEffort"}

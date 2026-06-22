@@ -38,3 +38,35 @@ def hard_scenario() -> Scenario:
         ref_step_time=100e-3,
         ref_step_value=260.0,       # +20 V w gore z 240 V
     )
+
+
+STRESS_T_END = 0.20  # s
+
+# Ciag skokow referencji co 20 ms: 240 <-> 280 V (8 przejsc).
+# Kazdy skok W GORE (240->280) wymusza surge pradu (ladowanie C), kazdy skok
+# W DOL (280->240) wymaga zduszenia. Przy R=47.6 Ohm i 280 V: P=1647 W,
+# i_in=16.5 A < i_max=20 A -> brak nasycenia OCP, nastawy (wi, fc) maja wplyw.
+# Cel: transienty pradowe zajmuja DUZA czesc horyzontu (w przeciwienstwie do
+# hard_scenario, gdzie pojedynczy transient to ~5% calki bledu pradu) -> tu
+# "pulapka" prof. (kara za blad pradu) FAKTYCZNIE zaczyna spowalniac sterownik.
+_STRESS_PULSES = (
+    (0.040, 280.0),
+    (0.060, 240.0),
+    (0.080, 280.0),
+    (0.100, 240.0),
+    (0.120, 280.0),
+    (0.140, 240.0),
+    (0.160, 280.0),
+    (0.180, 240.0),
+)
+
+
+def stress_scenario() -> Scenario:
+    """Stress-test: powtarzalne skoki referencji 240<->280 V co 20 ms.
+
+    Wymusza serie surge'ow pradu rozsianych po calym horyzoncie. W tym
+    scenariuszu transienty pradowe stanowia duza czesc calego bledu pradu,
+    wiec funkcja celu swiadoma pradu (CurrentAware) zaczyna preferowac
+    wolniejsza, lagodniejsza odpowiedz - "pulapka" sie budzi.
+    """
+    return Scenario(ref_pulses=_STRESS_PULSES)

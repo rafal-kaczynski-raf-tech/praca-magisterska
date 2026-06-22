@@ -32,7 +32,7 @@ from dataclasses import replace
 
 from src.config import default_config
 from src.simulator import Simulator
-from optymalizacja.cost_functions import COST_FUNCTIONS
+from optymalizacja.cost_functions import COST_FUNCTIONS, CURRENT_AWARE, OSCILLATION_AWARE
 from optymalizacja import metrics
 from optymalizacja.scenarios import hard_scenario, HARD_T_END
 
@@ -62,6 +62,9 @@ def _build_u_ref_arr(t: np.ndarray, u_ref0: float, scn) -> np.ndarray:
     if scn is not None and scn.ref_step_time is not None:
         mask = t >= scn.ref_step_time
         u_ref_arr[mask] = scn.ref_step_value
+    if scn is not None and getattr(scn, "ref_pulses", None) is not None:
+        for t_p, u_p in scn.ref_pulses:
+            u_ref_arr[t >= t_p] = u_p
     return u_ref_arr
 
 
@@ -80,6 +83,12 @@ def evaluate(log_wi: float, log_fc: float, cost_name: str = COST_NAME) -> float:
     u_ref_arr = _build_u_ref_arr(t, cfg.controller.u_ref, SCENARIO)
 
     fn = COST_FUNCTIONS[cost_name]
+    if cost_name in CURRENT_AWARE:
+        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr,
+                  i_des=res["i_des_phys"])
+    if cost_name in OSCILLATION_AWARE:
+        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr,
+                  iL_ctrl=res["iL_sample"])
     return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr)
 
 

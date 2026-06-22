@@ -19,6 +19,10 @@ class Scenario:
     load_step_R: Optional[float] = None       # [Ohm] nowa wartosc R_load po skoku
     ref_step_time: Optional[float] = None     # [s] moment skoku referencji
     ref_step_value: Optional[float] = None    # [V] nowa wartosc u_ref po skoku
+    # Ciag skokow referencji (stress-test): krotka par ((t1, u1), (t2, u2), ...).
+    # None = brak. Aplikowane sekwencyjnie gdy t_now >= t_i. Domyslnie None,
+    # wiec stara sciezka pozostaje bit-w-bit identyczna.
+    ref_pulses: Optional[tuple] = None
 
 
 @dataclass(frozen=True)
