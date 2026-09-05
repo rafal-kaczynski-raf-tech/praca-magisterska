@@ -23,6 +23,11 @@ class Scenario:
     # None = brak. Aplikowane sekwencyjnie gdy t_now >= t_i. Domyslnie None,
     # wiec stara sciezka pozostaje bit-w-bit identyczna.
     ref_pulses: Optional[tuple] = None
+    # Ciag skokow obciazenia (odlaczenie/podlaczenie "urzadzenia"): krotka par
+    # ((t1, R1), (t2, R2), ...). Analogiczne do ref_pulses, ale na R_load.
+    # None = brak (stara sciezka bez zmian). Sluzy do scenariusza prof.
+    # Iwanskiego (wylacz/wlacz urzadzenie w trakcie pomiaru).
+    load_pulses: Optional[tuple] = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +50,12 @@ class ControllerParams:
     wi: float = 1.0            # waga bledu pradu
     i_max: float = 20.0        # zabezpieczenie nadpradowe [A]
     fc_lpf: float = 2000.0     # czestotliwosc odciecia LPF [Hz]
+    # Model-based current correction (Tatari/Bizhani/Iwanski IEEE JESTIE):
+    # kompensacja opoznienia probkowania iL(k+1) (Eq. 14a/14b) + czlon
+    # korekcyjny i_delta (Eq. 16) eliminujacy uchyb ustalony pradu w funkcji
+    # przelaczajacej (Eq. 17). Domyslnie False -> stara funkcja przelaczajaca
+    # (error_i = i_des - i_act), zgodna bit-w-bit z baseline testu regresji.
+    current_correction: bool = False
 
 
 @dataclass(frozen=True)

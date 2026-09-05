@@ -32,7 +32,8 @@ from dataclasses import replace
 
 from src.config import default_config
 from src.simulator import Simulator
-from optymalizacja.cost_functions import COST_FUNCTIONS, CURRENT_AWARE, OSCILLATION_AWARE
+from optymalizacja.cost_functions import (COST_FUNCTIONS, CURRENT_AWARE,
+                                           OSCILLATION_AWARE, CURRENT_EFFORT)
 from optymalizacja import metrics
 from optymalizacja.scenarios import hard_scenario, HARD_T_END
 
@@ -54,6 +55,11 @@ LOG_FC_BOUNDS = (np.log10(200.0), np.log10(10000.0))
 SCENARIO = hard_scenario()
 T_END = HARD_T_END
 
+# Model-based current correction (Eq.14-17, Tatari/Bizhani/Iwanski) - domyslnie
+# wylaczona (stara funkcja przelaczajaca). Ustaw pso.CURRENT_CORRECTION = True
+# przed wywolaniem run_pso(), zeby wlaczyc korekte w ewaluowanym sterowniku.
+CURRENT_CORRECTION = False
+
 RNG_SEED = 42
 
 
@@ -68,13 +74,21 @@ def _build_u_ref_arr(t: np.ndarray, u_ref0: float, scn) -> np.ndarray:
     return u_ref_arr
 
 
-def evaluate(log_wi: float, log_fc: float, cost_name: str = COST_NAME) -> float:
-    """Pojedyncza ewaluacja funkcji celu (z przestrzeni log -> param fizyczny)."""
+def evaluate(log_wi: float, log_fc: float, cost_name: str = COST_NAME,
+             weight: float | None = None) -> float:
+    """Pojedyncza ewaluacja funkcji celu (z przestrzeni log -> param fizyczny).
+
+    weight: opcjonalne nadpisanie wagi czlonu pradowego -- dla CurrentAware to
+    'lam', dla CurrentOscillation to 'mu', dla CurrentEffort to 'gamma'.
+    Domyslnie None -> uzywa stalej modulowej z cost_functions.py. Sluzy do
+    recznego sweepu wagi na prosbe prof. Iwanskiego.
+    """
     wi = 10.0 ** log_wi
     fc = 10.0 ** log_fc
 
     base = default_config()
-    new_ctrl = replace(base.controller, wi=wi, fc_lpf=fc)
+    new_ctrl = replace(base.controller, wi=wi, fc_lpf=fc,
+                        current_correction=CURRENT_CORRECTION)
     cfg = replace(base, controller=new_ctrl, scenario=SCENARIO, T_end=T_END)
 
     sim = Simulator(cfg)
@@ -84,11 +98,20 @@ def evaluate(log_wi: float, log_fc: float, cost_name: str = COST_NAME) -> float:
 
     fn = COST_FUNCTIONS[cost_name]
     if cost_name in CURRENT_AWARE:
-        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr,
-                  i_des=res["i_des_phys"])
+        kwargs = {"i_des": res["i_des_phys"]}
+        if weight is not None:
+            kwargs["lam"] = weight
+        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr, **kwargs)
     if cost_name in OSCILLATION_AWARE:
-        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr,
-                  iL_ctrl=res["iL_sample"])
+        kwargs = {"iL_ctrl": res["iL_sample"]}
+        if weight is not None:
+            kwargs["mu"] = weight
+        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr, **kwargs)
+    if cost_name in CURRENT_EFFORT:
+        kwargs = {}
+        if weight is not None:
+            kwargs["gamma"] = weight
+        return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr, **kwargs)
     return fn(t, res["v_C"], res["i_L"], res["s"], u_ref_arr)
 
 
@@ -96,6 +119,7 @@ def run_pso(n_particles: int = N_PARTICLES,
             n_iter: int = N_ITER,
             seed: int = RNG_SEED,
             cost_name: str = COST_NAME,
+            weight: float | None = None,
             verbose: bool = True) -> dict:
     """Klasyczne PSO z inertia weight. Zwraca dict z historia + gbest."""
     rng = np.random.default_rng(seed)
@@ -110,7 +134,7 @@ def run_pso(n_particles: int = N_PARTICLES,
     V = rng.uniform(-v_max, v_max, size=(n_particles, 2))
 
     # Ocena startowa
-    F = np.array([evaluate(x[0], x[1], cost_name) for x in X])
+    F = np.array([evaluate(x[0], x[1], cost_name, weight) for x in X])
 
     pbest_X = X.copy()
     pbest_F = F.copy()
@@ -159,7 +183,7 @@ def run_pso(n_particles: int = N_PARTICLES,
         X = np.clip(X, lb, ub)
 
         # Ocena
-        F = np.array([evaluate(x[0], x[1], cost_name) for x in X])
+        F = np.array([evaluate(x[0], x[1], cost_name, weight) for x in X])
 
         # Update pbest
         improved = F < pbest_F
@@ -191,7 +215,8 @@ def run_pso(n_particles: int = N_PARTICLES,
     wi_opt = 10 ** gbest_X[0]
     fc_opt = 10 ** gbest_X[1]
     base = default_config()
-    new_ctrl = replace(base.controller, wi=wi_opt, fc_lpf=fc_opt)
+    new_ctrl = replace(base.controller, wi=wi_opt, fc_lpf=fc_opt,
+                        current_correction=CURRENT_CORRECTION)
     cfg = replace(base, controller=new_ctrl, scenario=SCENARIO, T_end=T_END)
     res = Simulator(cfg).run()
     u_ref_final = (SCENARIO.ref_step_value

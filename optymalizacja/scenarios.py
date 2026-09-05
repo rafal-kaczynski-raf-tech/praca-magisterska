@@ -70,3 +70,98 @@ def stress_scenario() -> Scenario:
     wolniejsza, lagodniejsza odpowiedz - "pulapka" sie budzi.
     """
     return Scenario(ref_pulses=_STRESS_PULSES)
+
+
+PROF_T_END = 0.30  # s
+
+R_LOAD_NOMINAL = 47.619   # Ohm - nominalne obciazenie ("urzadzenie" podlaczone)
+R_LOAD_OFF = 1.0e7        # Ohm - "urzadzenie odlaczone" (praktyczny rozwarcie)
+
+# Wg wytycznych prof. Iwanskiego (spotkanie Teams): odlaczenie/podlaczenie
+# obciazenia (R_load) symulujace wylaczenie/wlaczenie "urzadzenia".
+_PROF_LOAD_PULSES = (
+    (0.05, R_LOAD_OFF),        # t=50ms:  wylaczenie urzadzenia
+    (0.10, R_LOAD_NOMINAL),    # t=100ms: wlaczenie urzadzenia
+    (0.20, R_LOAD_OFF),        # t=200ms: wylaczenie urzadzenia
+    (0.25, R_LOAD_NOMINAL),    # t=250ms: wlaczenie urzadzenia
+)
+
+
+def professor_scenario() -> Scenario:
+    """Scenariusz wg wytycznych prof. Iwanskiego (spotkanie Teams, lipiec 2026).
+
+    Oś czasu (v_C0 = 100 V, rozruch do u_ref = 240 V jak dotychczas):
+      t=0.00s  start, rozruch 100 -> 240 V
+      t=0.05s  wylaczenie urzadzenia (odlaczenie R_load)
+      t=0.10s  wlaczenie urzadzenia (powrot R_load)
+      t=0.15s  skok referencji 240 V -> 160 V
+      t=0.20s  wylaczenie urzadzenia
+      t=0.25s  wlaczenie urzadzenia
+      t=0.30s  koniec pomiaru / probkowania
+
+    Wskazniki interesujace prof. liczy sie WYLACZNIE w stanie ustalonym
+    (poza oknem przejsciowym po kazdym zdarzeniu):
+      1) uchyb napiecia wzgledem wartosci zadanej (mean(v_C) - u_ref),
+      2) tetnienia pradu wzgledem wartosci sredniej (ripple_pp / mean(i_L) * 100%).
+
+    Patrz optymalizacja/analiza_scenariusz_prof.py.
+    """
+    return Scenario(
+        ref_step_time=0.15,
+        ref_step_value=160.0,
+        load_pulses=_PROF_LOAD_PULSES,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Replika scenariusza Fig. 8 z artykulu (Tatari/Bizhani/Iwanski, IEEE JESTIE,
+# sekcja VI-A-1 "Proposed BB Control Performance"). Parametry wg Table I.
+# ---------------------------------------------------------------------------
+
+ARTICLE_T_END = 0.45  # s - 150ms po ostatnim zdarzeniu (t=0.30s) na ustalenie
+
+# Table I: Input Voltage vs=100V, Resistive Load Range 41.6-416 Ohm,
+# Output Voltage Range vout*=150-250V, Maximum Inductor Current imax_L=20A,
+# Input Inductance L=750uH, Output Capacitance C=1500uF, Sampling Time Ts=20us.
+ARTICLE_V_IN = 100.0
+ARTICLE_L = 0.75e-3
+ARTICLE_C = 1500e-6
+ARTICLE_R_INITIAL = 41.6      # Ohm - CCM
+ARTICLE_R_AFTER = 208.0       # Ohm - CCM->DCM po skoku obciazenia
+ARTICLE_TS = 20e-6            # s - okres probkowania sterownika
+ARTICLE_I_MAX = 20.0          # A
+ARTICLE_FC_LPF = 200.0        # Hz - "effective compromise" wg artykulu
+ARTICLE_U_REF0 = 250.0        # V
+ARTICLE_U_REF1 = 150.0        # V
+ARTICLE_REF_STEP_TIME = 0.15  # s
+ARTICLE_LOAD_STEP_TIME = 0.30  # s
+
+# Empiryczna regula strojenia wagi lambda z artykulu (rown. po (21)):
+#   lambda(C) = 7.48 * C[uF]^-0.547
+# Dla C=1500uF: lambda ~= 0.137.
+ARTICLE_LAMBDA = 7.48 * (ARTICLE_C * 1e6) ** (-0.547)
+
+
+def article_fig8_scenario() -> Scenario:
+    """Replika scenariusza z Fig. 8 artykulu (sekcja VI-A-1).
+
+    Oś czasu (opisana w tekście artykulu, wout* i R w Table I):
+      t=0.00s  start, u_ref=250V (CCM, R=41.6 Ohm)
+      t=0.15s  skok referencji 250V -> 150V (R bez zmian)
+      t=0.30s  skok obciazenia R: 41.6 -> 208 Ohm (przejscie CCM->DCM)
+      t=0.45s  koniec (dodatkowe 150ms na ustalenie po ostatnim zdarzeniu,
+               artykul nie podaje dokladnego konca pomiaru)
+
+    UWAGA: to NIE jest cyfrowa replika danych z wykresu artykulu (nie mamy
+    dostepu do surowych danych/kodu autorow) - to nasza symulacja z tymi
+    samymi parametrami fizycznymi (Table I), tym samym rownaniem sterujacym
+    (Eq.14-17, current_correction=True) i ta sama regula lambda(C), majaca
+    umozliwic JAKOSCIOWE porownanie zachowania (osiadanie, tetnienia,
+    uchyb ustalony) z opisem w tekscie artykulu.
+    """
+    return Scenario(
+        ref_step_time=ARTICLE_REF_STEP_TIME,
+        ref_step_value=ARTICLE_U_REF1,
+        load_pulses=((ARTICLE_LOAD_STEP_TIME, ARTICLE_R_AFTER),),
+    )
+

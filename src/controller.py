@@ -13,6 +13,13 @@ Sekwencja w jednym ticku sterownika:
          s_new = 1 if (u_ref - uout_act) + wi*(i_des - i_act) > 0 else 0
     6. Zabezpieczenie nadpradowe
     7. Update pamieci (i_old, s_old, uout_old)
+
+Opcjonalnie (params.current_correction=True): "Model-based Bang-Bang" wg
+Tatari/Bizhani/Iwanski (IEEE JESTIE) -- krok 5 zastapiony predykcja iL(k+1)
+kompensujaca opoznienie probkowania (Eq.14a/14b) oraz czlonem korekcyjnym
+i_delta (Eq.16) eliminujacym uchyb ustalony pradu (Eq.17). Domyslnie
+wylaczone, wiec stara sciezka pozostaje bit-w-bit identyczna (baseline
+testu regresji, wczesniejsze wyniki PSO).
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -31,6 +38,8 @@ class ControllerOutput:
     error_i: float
     i_act: float
     uout_act: float
+    i_L_pred: float = 0.0   # predykcja iL(k+1) (Eq.14) - gdy current_correction
+                            # wylaczone, rowna i_act (brak predykcji)
 
 
 class MFBBController:
@@ -44,6 +53,7 @@ class MFBBController:
     ) -> None:
         self.p = params
         self.C = converter_params.C       # potrzebne w estymatorze
+        self.L = converter_params.L       # potrzebne w korekcie pradowej (Eq.14/16)
         self.V_in = converter_params.V_in  # potrzebne w bilansie mocy
         self.lpf = ButterworthLPF(params.fc_lpf, fs_lpf)
 
@@ -71,15 +81,40 @@ class MFBBController:
         # Bilans mocy - prąd zadany
         i_des = iout_filt * self.u_ref / self.V_in
 
-        # Funkcja przelaczajaca
-        error_u = self.u_ref - uout_act
-        error_i = i_des - i_act
-        s_new = 1 if (error_u + p.wi * error_i) > 0 else 0
+        if self.p.current_correction:
+            # --- Model-based Bang-Bang (Tatari/Bizhani/Iwanski, Eq.14-17) ---
+            # Kompensacja opoznienia probkowania: predykcja iL(k+1) na
+            # podstawie stanu klucza s_current ZASTOSOWANEGO w ostatnim
+            # okresie (jeszcze nie nadpisanego decyzja tego ticku).
+            Ts = p.T_s_ctrl
+            if self.s_current == 1:
+                i_L_pred = i_act + Ts / self.L * self.V_in            # Eq.14a
+            else:
+                i_L_pred = i_act + Ts / self.L * (self.V_in - uout_act)  # Eq.14b
 
-        # Zabezpieczenie nadpradowe
-        if i_act > p.i_max:
+            # Czlon korekcyjny eliminujacy uchyb ustalony pradu (Eq.16)
+            i_delta = 0.5 * (2.0 * self.V_in - uout_act) * Ts / self.L
+
+            # Funkcja przelaczajaca z korekta (Eq.17): oczekiwana (i_des+i_delta)
+            # vs przewidziana/zmierzona (i_L_pred) wartosc pradu
+            error_u = self.u_ref - uout_act
+            error_i = (i_des + i_delta) - i_L_pred
+            s_new = 1 if (error_u + p.wi * error_i) > 0 else 0
+
+            # Zabezpieczenie nadpradowe - na przewidzianym pradzie (jak w art., Fig.7)
+            i_check = i_L_pred
+        else:
+            # Funkcja przelaczajaca (oryginalna, bez korekty)
+            error_u = self.u_ref - uout_act
+            error_i = i_des - i_act
+            s_new = 1 if (error_u + p.wi * error_i) > 0 else 0
+
+            # Zabezpieczenie nadpradowe
+            i_check = i_act
+
+        if i_check > p.i_max:
             s_new = 0
-        elif i_act < -p.i_max:
+        elif i_check < -p.i_max:
             s_new = 1
 
         # Update pamieci
@@ -97,4 +132,5 @@ class MFBBController:
             error_i=error_i,
             i_act=i_act,
             uout_act=uout_act,
+            i_L_pred=i_check,
         )
