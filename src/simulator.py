@@ -8,9 +8,9 @@ demo_bangbang_estim.simulate() (sprawdza to tests/test_regression.py).
 """
 from __future__ import annotations
 import numpy as np
-from .config import SimulationConfig
+from .config import SimulationConfig, TrendMFBBParams
 from .converter import Converter
-from .controller import MFBBController
+from .controller import MFBBController, TrendMFBBController
 from .sampler import ZOHSampler
 
 
@@ -20,11 +20,17 @@ class Simulator:
     def __init__(self, config: SimulationConfig) -> None:
         self.cfg = config
         self.converter = Converter(config.converter)
-        self.controller = MFBBController(
-            params=config.controller,
-            converter_params=config.converter,
-            fs_lpf=config.fs_lpf,
-        )
+        if isinstance(config.controller, TrendMFBBParams):
+            self.controller = TrendMFBBController(
+                params=config.controller,
+                converter_params=config.converter,
+            )
+        else:
+            self.controller = MFBBController(
+                params=config.controller,
+                converter_params=config.converter,
+                fs_lpf=config.fs_lpf,
+            )
         self.sampler = ZOHSampler(
             i_L0=config.converter.i_L0,
             v_C0=config.converter.v_C0,

@@ -59,6 +59,27 @@ class ControllerParams:
 
 
 @dataclass(frozen=True)
+class TrendMFBBParams:
+    """Parametry regulatora Model-Free Bang-Bang z filtrowanym trendem napiecia.
+
+    Zgodne ze specyfikacja techniczna prof. Iwanskiego (2026):
+    - wi: waga bledu pradu (w nocie: 0.2 bazowo)
+    - wv: waga trendu napiecia delta_uf (0.0 = bazowe MF-BB bez trendu)
+    - fc_i: czestotliwosc odciecia filtru punktu pracy pradu [Hz] (w nocie: 321 Hz)
+    - fc_u: czestotliwosc odciecia filtru trendu napiecia [Hz] (w nocie: 321 Hz)
+    - i_max, i_min: granice dopuszczalnego pradu cewki [A]
+    """
+    u_ref: float = 240.0
+    T_s_ctrl: float = 10e-6
+    wi: float = 0.2
+    wv: float = 0.0
+    fc_i: float = 321.0
+    fc_u: float = 321.0
+    i_max: float = 20.0
+    i_min: float = -20.0
+
+
+@dataclass(frozen=True)
 class SimulationConfig:
     """Pelna konfiguracja symulacji."""
     converter: ConverterParams

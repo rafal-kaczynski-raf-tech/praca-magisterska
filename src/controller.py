@@ -23,8 +23,8 @@ testu regresji, wczesniejsze wyniki PSO).
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from .config import ControllerParams, ConverterParams
-from .filters import ButterworthLPF
+from .config import ControllerParams, ConverterParams, TrendMFBBParams
+from .filters import ButterworthLPF, FirstOrderLPF
 
 
 @dataclass
@@ -40,6 +40,9 @@ class ControllerOutput:
     uout_act: float
     i_L_pred: float = 0.0   # predykcja iL(k+1) (Eq.14) - gdy current_correction
                             # wylaczone, rowna i_act (brak predykcji)
+    delta_u_f: float = 0.0  # trend napiecia (rozszerzenie MF-BB)
+    u_f: float = 0.0        # odfiltrowane napiecie wyjsciowe
+    e_BB: float = 0.0       # pelna wartosc funkcji przelaczajacej
 
 
 class MFBBController:
@@ -133,4 +136,84 @@ class MFBBController:
             i_act=i_act,
             uout_act=uout_act,
             i_L_pred=i_check,
+        )
+
+
+class TrendMFBBController:
+    """Regulator Model-Free Bang-Bang (MF-BB) z filtrowanym trendem napiecia.
+
+    Implementacja 1:1 wg specyfikacji technicznej prof. Iwanskiego (2026):
+    - Wyznaczanie ides bezposrednio z pradu iL przez filtr 1. rzedu (Tustin)
+    - Wyznaczanie uf bezposrednio z napiecia uout przez filtr 1. rzedu (Tustin)
+    - Trend napiecia delta_uf = uf[k] - uf[k-1]
+    - Funkcja przelaczajaca: eBB = (u_ref - uout) + wi*(ides - iL) - wv*delta_uf
+    - Decyzja progowa: s_cmd = 1 if eBB >= 0 else 0
+    - Zabezpieczenie pradowe na granicach [i_min, i_max]
+    - Opoznienie 1-probkowe cyfrowe (z^-1)
+    """
+
+    def __init__(
+        self,
+        params: TrendMFBBParams,
+        converter_params: ConverterParams,
+    ) -> None:
+        self.p = params
+        fs = 1.0 / params.T_s_ctrl
+        v_C0 = converter_params.v_C0
+        i_L0 = converter_params.i_L0
+
+        # Filtry dyskretne 1. rzedu dla pradu i napiecia (Tustin)
+        self.filter_i = FirstOrderLPF(params.fc_i, fs, initial_val=i_L0)
+        self.filter_u = FirstOrderLPF(params.fc_u, fs, initial_val=v_C0)
+
+        # Pamiec i stan sterownika
+        self.s_current: int = 0
+        self.u_ref: float = params.u_ref
+        self.u_f_prev: float = v_C0
+        self.delta_u_f: float = 0.0
+
+    def tick(self, t_now: float, i_act: float, uout_act: float) -> ControllerOutput:
+        p = self.p
+
+        # 1. Wyznaczenie wolnozmiennego punktu pracy pradu ides z filtru 1. rzedu
+        i_des = self.filter_i.process(i_act)
+
+        # 2. Filtracja napiecia i obliczenie trendu delta_uf
+        u_f = self.filter_u.process(uout_act)
+        delta_u_f = u_f - self.u_f_prev
+        self.u_f_prev = u_f
+
+        # 3. Bledy ze znakiem
+        error_u = self.u_ref - uout_act
+        error_i = i_des - i_act
+
+        # 4. Funkcja przelaczajaca
+        e_BB = error_u + p.wi * error_i - p.wv * delta_u_f
+
+        # 5. Decyzja progowa (komparator)
+        s_cmd = 1 if e_BB >= 0.0 else 0
+
+        # 6. Zabezpieczenie pradowe (w granicach [i_min, i_max])
+        # W przetwornicy podwyzszajacej boost: s=1 zwieksza prad, s=0 zmniejsza prad
+        if i_act >= p.i_max and s_cmd == 1:
+            s_cmd = 0
+        elif i_act <= p.i_min and s_cmd == 0:
+            s_cmd = 1
+
+        s_new = s_cmd
+        self.s_current = s_new
+
+        return ControllerOutput(
+            s_new=s_new,
+            iout_est=0.0,
+            iout_filt=0.0,
+            i_des=i_des,
+            error_u=error_u,
+            error_i=error_i,
+            i_act=i_act,
+            uout_act=uout_act,
+            i_L_pred=i_act,
+            delta_u_f=delta_u_f,
+            u_f=u_f,
+            e_BB=e_BB,
         )

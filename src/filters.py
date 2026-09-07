@@ -60,3 +60,51 @@ class ButterworthLPF:
         self.y1 = y        # obecny wygladzony wynik staje sie wynikiem sprzed 1 kroku
 
         return y
+
+
+def tustin_1st_order_coeffs(fc: float, fs: float) -> tuple[float, float]:
+    """Wspolczynniki cyfrowego filtru dolnoprzepustowego 1. rzedu (Tustin).
+
+    Transmitancja ciagla:
+        G(s) = omega_c / (s + omega_c), gdzie omega_c = 2*pi*fc.
+    Rownanie roznicowe po dyskretyzacji Tustina (metoda trapezow):
+        y[k] = alpha * x[k] + alpha * x[k-1] + beta * y[k-1]
+    gdzie:
+        alpha = (omega_c * Ts) / (2.0 + omega_c * Ts)
+        beta  = (2.0 - omega_c * Ts) / (2.0 + omega_c * Ts) = 1.0 - 2.0 * alpha
+
+    Dla fc = 321 Hz i fs = 100 kHz (Ts = 10 us):
+        omega_c * Ts ~= 0.020169 -> alpha ~= 0.01, beta ~= 0.98.
+    """
+    Ts = 1.0 / fs
+    omega_c = 2.0 * np.pi * fc
+    denom = 2.0 + omega_c * Ts
+    alpha = (omega_c * Ts) / denom
+    beta = (2.0 - omega_c * Ts) / denom
+    return alpha, beta
+
+
+class FirstOrderLPF:
+    """Cyfrowy filtr dolnoprzepustowy (LPF) 1-go rzedu (Tustin).
+
+    Realizuje dokladnie strukture z artykulu Tatari & Iwanski (2026) oraz noty
+    technicznej MF-BB z trendem napiecia:
+        y[k] = alpha * x[k] + alpha * x[k-1] + beta * y[k-1]
+    """
+
+    def __init__(self, fc: float, fs: float, initial_val: float = 0.0) -> None:
+        self.fc = fc
+        self.fs = fs
+        self.alpha, self.beta = tustin_1st_order_coeffs(fc, fs)
+        self.x_prev: float = initial_val
+        self.y_prev: float = initial_val
+
+    def reset(self, initial_val: float = 0.0) -> None:
+        self.x_prev = initial_val
+        self.y_prev = initial_val
+
+    def process(self, x: float) -> float:
+        y = self.alpha * x + self.alpha * self.x_prev + self.beta * self.y_prev
+        self.x_prev = x
+        self.y_prev = y
+        return y
