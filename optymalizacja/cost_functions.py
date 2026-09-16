@@ -176,6 +176,120 @@ def current_effort(t, u_dc, i_L, s, u_ref, gamma: float = GAMMA_EFFORT) -> float
     return j_u + gamma * j_eff
 
 
+# Domyslne parametry dwustrefowej funkcji celu wg prof. Iwanskiego
+U_THRESH_DEFAULT = 5.0    # prog napiecia [V] rozgraniczajacy stany
+W_TRANS_DEFAULT = 40.0    # waga stanu przejsciowego (wyrownywujaca rzedy wielkosci 40:1)
+
+
+def error_threshold_aware(t, u_dc, i_L, s, u_ref, i_des=None,
+                          u_thresh: float = U_THRESH_DEFAULT,
+                          i_max: float = 20.0,
+                          w_trans: float = W_TRANS_DEFAULT,
+                          w_steady: float = 1.0,
+                          lam: float = LAMBDA_I) -> float:
+    """Dwustrefowa funkcja celu zalezna od bledu napiecia (koncepcja prof. Iwanskiego).
+
+    Dla |e_u| > u_thresh (stan przejsciowy):
+        Cel to pelne nasycenie pradu cewki (+i_max dla e_u>0, -i_max dla e_u<0).
+        Funkcja celu nie sprawdza bledu napiecia, tylko precyzje osiagniecia nasycenia:
+        J_trans = integral( |i_target - i_L| ) dt
+
+    Dla |e_u| <= u_thresh (otoczenie stanu ustalonego):
+        Standardowe kryterium CurrentAware:
+        J_steady = IAE_u + lam * IAE_i
+
+    Koszt calkowity:
+        J = w_trans * J_trans + w_steady * J_steady
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    e_u = u_ref_arr - u_dc
+
+    large_mask = np.abs(e_u) > u_thresh
+    small_mask = ~large_mask
+
+    # 1. Strefa duzego bledu (> u_thresh): prąd w nasyceniu
+    i_target = np.where(e_u > 0, i_max, -i_max)
+    j_trans = float(np.trapezoid(np.where(large_mask, np.abs(i_target - i_L), 0.0), t))
+
+    # 2. Strefa malego bledu (<= u_thresh): napiecie + prad (CurrentAware)
+    j_steady_u = float(np.trapezoid(np.where(small_mask, np.abs(e_u), 0.0), t))
+    if i_des is not None:
+        e_i = np.asarray(i_des, dtype=float) - i_L
+        j_steady_i = float(np.trapezoid(np.where(small_mask, np.abs(e_i), 0.0), t))
+    else:
+        j_steady_i = 0.0
+
+    j_steady = j_steady_u + lam * j_steady_i
+
+    return w_trans * j_trans + w_steady * j_steady
+
+
+W_PEAK_DEFAULT = 0.05     # waga kary za piki przeregulowan / zapadow w transiencie
+
+
+def transient_damping_aware(t, u_dc, i_L, s, u_ref, i_des=None,
+                            u_thresh: float = U_THRESH_DEFAULT,
+                            w_peak: float = W_PEAK_DEFAULT,
+                            lam: float = LAMBDA_I,
+                            stage: str = "both") -> float:
+    """Ulepszona dwustrefowa funkcja celu z penalizacja zapadu/przeregulowania.
+
+    Rozwiazuje problem przedwczesnego hamowania w transiencie:
+    1. Dla |e_u| > u_thresh (w trakcie skoku):
+       - liczy czas trwania skoku j_trans_time = integral(|e_u|) dt w strefie > u_thresh,
+       - karze kwadratowo maksymalny zapad po skoku 240->160V oraz przeregulowanie po zalaczeniu R.
+       Nie wymusza na sile ciaglego nasycenia pradem - pozwala sterownikowi wyhamowac
+       prad przed celem bez nakladania sztucznej kary.
+    2. Dla |e_u| <= u_thresh (stan ustalony):
+       - kryterium CurrentAware: j_steady = IAE_u + lam * IAE_i.
+
+    Parametr stage umozliwia scisla optymalizacje dwutorowa:
+       - "both" (domyslnie): zwraca pelny koszt j_steady + j_trans_time + w_peak * j_peak
+       - "steady": zwraca wylacznie czlon stanu ustalonego j_steady (Krok 1 w optymalizacji dwuetapowej)
+       - "transient": zwraca wylacznie czlon transjentu j_trans_time + w_peak * j_peak (Krok 2)
+    """
+    u_ref_arr = _as_array(u_ref, t)
+    e_u = u_dc - u_ref_arr
+
+    large_mask = np.abs(e_u) > u_thresh
+    small_mask = ~large_mask
+
+    # 1. Strefa skoku (> u_thresh): calka bledu napiecia + kwadrat zapadu/przeregulowania/odbicia
+    j_trans_time = float(np.trapezoid(np.where(large_mask, np.abs(e_u), 0.0), t))
+
+    # Maksymalny zapad po skoku 240->160V w t=150ms (z tolerancja na naturalne ugiecie 0.2V):
+    m150 = (t >= 0.150) & (t <= 0.155)
+    raw_undershoot = max(0.0, 160.0 - float(np.min(u_dc[m150]))) if m150.any() else 0.0
+    undershoot = max(0.0, raw_undershoot - 0.2)
+
+    # Odbicie powyzej 160V po dojechaniu do celu (bada zachowanie PO dojsciu do 160V):
+    m150_reb = (t >= 0.1515) & (t <= 0.155)
+    rebound = max(0.0, float(np.max(u_dc[m150_reb])) - 160.0) if m150_reb.any() else 0.0
+
+    # Maksymalne przeregulowanie po zalaczeniu obciazenia w t=100ms:
+    m100 = (t >= 0.100) & (t <= 0.108)
+    overshoot = max(0.0, float(np.max(u_dc[m100])) - 240.0) if m100.any() else 0.0
+
+    j_peak = undershoot ** 2 + rebound ** 2 + overshoot ** 2
+    j_trans = j_trans_time + w_peak * j_peak
+
+    # 2. Strefa stanu ustalonego (<= u_thresh):
+    j_steady_u = float(np.trapezoid(np.where(small_mask, np.abs(e_u), 0.0), t))
+    if i_des is not None:
+        e_i = np.asarray(i_des, dtype=float) - i_L
+        j_steady_i = float(np.trapezoid(np.where(small_mask, np.abs(e_i), 0.0), t))
+    else:
+        j_steady_i = 0.0
+
+    j_steady = j_steady_u + lam * j_steady_i
+
+    if stage == "steady":
+        return j_steady
+    if stage == "transient":
+        return j_trans
+    return j_steady + j_trans
+
+
 # Rejestr funkcji celu -- klucz uzywany w raportach i kolumnach tabel
 COST_FUNCTIONS = {
     "MSE": mse,
@@ -186,10 +300,12 @@ COST_FUNCTIONS = {
     "CurrentAware": current_aware,
     "CurrentOscillation": current_oscillation,
     "CurrentEffort": current_effort,
+    "ErrorThresholdAware": error_threshold_aware,
+    "TransientDampingAware": transient_damping_aware,
 }
 
 # Funkcje celu wymagajace i_des (uchyb sledzenia pradu) - obsluga w pso.evaluate
-CURRENT_AWARE = {"CurrentAware"}
+CURRENT_AWARE = {"CurrentAware", "ErrorThresholdAware", "TransientDampingAware"}
 
 # Funkcje celu wymagajace pradu w takcie sterownika (iL_ctrl) - druga roznica
 OSCILLATION_AWARE = {"CurrentOscillation"}
