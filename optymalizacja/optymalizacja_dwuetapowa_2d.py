@@ -54,6 +54,7 @@ from optymalizacja.analiza_scenariusz_prof import analyse as analyse_prof
 from optymalizacja.wykres_scenariusz_prof import _minmax_decimate
 from optymalizacja.cost_functions import transient_damping_aware
 from optymalizacja.pso import _build_u_ref_arr
+from optymalizacja.pyswarms_optimizer import optimize_stage1_pyswarms, optimize_stage2_pyswarms
 
 # ---------------------------------------------------------------------------
 # Czcionki z obsluga polskich znakow
@@ -158,8 +159,16 @@ def evaluate_stage1(wi: float, fc_i: float) -> float:
     return j_steady
 
 
-def run_stage1_pso() -> tuple[float, float, float]:
+def run_stage1_pso(use_pyswarms: bool = True) -> tuple[float, float, float]:
     print("--- KROK 1: 2D PSO dla (w_i, fc_i) w stanie ustalonym (w_u = 0) ---")
+    if use_pyswarms:
+        print("  [Silnik optymalizacyjny: PySwarms GlobalBestPSO]")
+        best_wi, best_fci, gbest_F = optimize_stage1_pyswarms(
+            lam=LAMBDA_I, n_particles=N_PARTICLES, n_iter=N_ITER, seed=SEED, verbose=True
+        )
+        print(f"--> KROK 1 Zakonczony (PySwarms): wi* = {best_wi:.4f}, fc_i* = {best_fci:.1f} Hz (J1 = {gbest_F:.4f})\n")
+        return best_wi, best_fci, gbest_F
+
     rng = np.random.default_rng(SEED)
 
     # Granice logarytmiczne: wi in [0.05, 2.0], fc_i in [100, 2000] Hz
@@ -246,8 +255,17 @@ def evaluate_stage2(wu: float, fc_u: float, wi_fixed: float, fci_fixed: float) -
     return raw_undershoot, j_trans
 
 
-def run_stage2_pso(wi_fixed: float, fci_fixed: float) -> tuple[float, float, float]:
+def run_stage2_pso(wi_fixed: float, fci_fixed: float, use_pyswarms: bool = True) -> tuple[float, float, float]:
     print(f"--- KROK 2: 2D PSO dla (w_u, fc_u) w transjencie (zamrozone wi* = {wi_fixed:.4f}, fc_i* = {fci_fixed:.1f} Hz) ---")
+    if use_pyswarms:
+        print("  [Silnik optymalizacyjny: PySwarms GlobalBestPSO]")
+        best_wu, best_fcu, under_best, gbest_F = optimize_stage2_pyswarms(
+            wi_fixed=wi_fixed, fci_fixed=fci_fixed, w_trans_time=W_TRANS_TIME,
+            n_particles=N_PARTICLES, n_iter=N_ITER, seed=SEED + 1, verbose=True
+        )
+        print(f"--> KROK 2 Zakonczony (PySwarms): wu* = {best_wu:.2f}, fc_u* = {best_fcu:.1f} Hz (zapad = {under_best:.2f} V, J2 = {gbest_F:.4f})\n")
+        return best_wu, best_fcu, under_best
+
     rng = np.random.default_rng(SEED + 1)
 
     # Granice logarytmiczne: wu in [1.0, 35.0], fc_u in [100, 2000] Hz

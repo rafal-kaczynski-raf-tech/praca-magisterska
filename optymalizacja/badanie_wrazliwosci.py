@@ -49,6 +49,8 @@ from reportlab.pdfbase.ttfonts import TTFont
 from src.config import ConverterParams, TrendMFBBParams, SimulationConfig
 from src.simulator import Simulator
 from optymalizacja.scenarios import professor_scenario, PROF_T_END
+import pyswarms as ps
+from pyswarms.single.global_best import GlobalBestPSO
 
 # ---------------------------------------------------------------------------
 # Czcionki z obsluga polskich znakow
@@ -107,15 +109,65 @@ class NumberedCanvas(canvas.Canvas):
 # ---------------------------------------------------------------------------
 # KROK 1: 2D PSO dla (w_i, fc_i) przy roznych lambda_i
 # ---------------------------------------------------------------------------
-def opt_step1_2d_pso(lam: float, seed: int = 42) -> tuple[float, float, float, float, float, float]:
-    rng = np.random.default_rng(seed)
+def opt_step1_2d_pso(lam: float, seed: int = 42, use_pyswarms: bool = True) -> tuple[float, float, float, float, float, float]:
     lb = np.array([np.log10(0.20), np.log10(150.0)])
     ub = np.array([np.log10(0.80), np.log10(1000.0)])
+    bounds = (lb, ub)
     dim = 2
     N_PART = 10
     N_IT = 14
-    v_max = (ub - lb) * 0.25
 
+    def eval_pt(pt):
+        w = float(10**pt[0])
+        f = float(10**pt[1])
+        ctrl = TrendMFBBParams(
+            u_ref=240.0,
+            T_s_ctrl=10e-6,
+            wi=w,
+            wv=0.0,
+            fc_i=f,
+            fc_u=FC_NOMINAL,
+            i_max=20.0,
+            i_min=-20.0,
+        )
+        res = Simulator(SimulationConfig(converter=CONV, controller=ctrl, dt_phys=DT_PHYS, T_end=0.150, scenario=professor_scenario())).run()
+        m = (res["t"] >= 0.120) & (res["t"] < 0.150)
+        v = res["v_C"][m]
+        iL = res["i_L"][m]
+        ides = res["i_des_phys"][m]
+        iu = float(np.mean(np.abs(v - 240.0)))
+        ii = float(np.mean(np.abs(ides - iL)))
+        cost = iu + lam * ii
+        return cost, iu, ii, float(np.ptp(iL))
+
+    if use_pyswarms:
+        def batch_eval(X: np.ndarray) -> np.ndarray:
+            return np.array([eval_pt(x)[0] for x in X])
+
+        options = {"c1": 1.5, "c2": 1.5, "w": 0.9}
+        oh_strategy = {"w": "lin_variation"}
+        rng = np.random.default_rng(seed)
+        init_pos = rng.uniform(lb, ub, size=(N_PART, dim))
+        init_pos[0] = np.array([np.log10(0.40), np.log10(321.0)])
+
+        opt = GlobalBestPSO(
+            n_particles=N_PART,
+            dimensions=dim,
+            options=options,
+            bounds=bounds,
+            bh_strategy="reflective",
+            oh_strategy=oh_strategy,
+            init_pos=init_pos,
+            ftol=-np.inf,
+        )
+        cost, pos = opt.optimize(batch_eval, iters=N_IT, verbose=False)
+        best_w = float(10**pos[0])
+        best_f = float(10**pos[1])
+        c, iu, ii, ipp = eval_pt(pos)
+        return best_w, best_f, iu, ii, ipp, c
+
+    rng = np.random.default_rng(seed)
+    v_max = (ub - lb) * 0.25
     X = rng.uniform(lb, ub, size=(N_PART, dim))
     X[0] = np.array([np.log10(0.40), np.log10(321.0)])
     V = rng.uniform(-v_max, v_max, size=(N_PART, dim))
