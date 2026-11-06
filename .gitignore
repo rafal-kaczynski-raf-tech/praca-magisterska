@@ -209,3 +209,6 @@ marimo/_lsp/
 __marimo__/
 
 .DS_Store
+
+# Local-only email report generator
+/optymalizacja/generuj_pdf_email.py
