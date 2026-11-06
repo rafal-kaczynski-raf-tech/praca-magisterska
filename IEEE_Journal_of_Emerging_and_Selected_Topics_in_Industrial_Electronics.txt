@@ -1,0 +1,1363 @@
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+1
+
+Enhanced Bang-Bang Control Method for DC Voltage Regulation in
+Non-Minimum Phase Power Electronics Converter
+Fatemeh Rezayof Tatari, Student Member, IEEE, Hamed Bizhani, Senior Member, IEEE, Grzegorz
+Iwanski, Senior Member, IEEE
+
+Index Terms—Bang-bang control, boost converter, current
+regulation, digital implementation, model-based control, voltage
+regulation, delay compensation.
+
+I. I NTRODUCTION
+Microgrids offer higher efficiency than conventional
+AC systems by reducing multiple AC–DC conversions [1], [2]. Power electronic converters enable integration of
+renewable sources such as solar, wind, and batteries. Among
+them, DC–DC boost converters (Fig. 1) are widely used for
+voltage step-up and power balancing in DC microgrids [3]–[5].
+However, their non-minimum-phase (NMP) nature causes the
+output voltage to initially move opposite to the control action,
+requiring advanced control strategies to ensure stability and
+accurate voltage regulation [6].
+The most widely used approach to mitigate the NMP issue is
+the cascaded control structure, combining an inner current loop
+and an outer voltage loop. The inner loop can be implemented
+using different types of current controllers, such as PI [7],
+hysteresis [8], bang-bang (BB) [9], or model predictive control
+(MPC) [10], [11], while the outer loop typically uses a PI
+voltage regulator. This structure provides a clear reference
+current, simplifying current limitation and protection, but the
+outer PI voltage loop slows the transient response compared
+with faster model-based or MPC methods. In addition to classic cascaded structure, numerous advanced control strategies
+have been also reported in the literature [12], [13] to directly
+
+DC
+
+The authors are with the Faculty of Electrical Engineering,
+Warsaw University of Technology, Warsaw, Poland. (e-mail:
+fatemeh.rezayof tatari.dokt@pw.edu.pl;
+hamed.bizhani@pw.edu.pl;
+grzegorz.iwanski@pw.edu.pl)
+
+L
+iL
+vs
+
+IGBT
+driver
+
+S
+
+D
+
+iLoad
+
+iD
+C
+
++
+v
+_ out
+
+Load
+
+Abstract—The bang-bang (BB) control strategy, recognized for
+its simplicity and rapid dynamic response, is widely adopted in
+power electronic converters. However, conventional BB methods
+suffer from high current ripple due to the one-sample delay
+introduced by digital implementation. To address this limitation,
+this paper proposes a model-based bang-bang (MBB) control
+method for DC-DC boost converters. The proposed approach
+utilizes a converter model to update the state variables in real
+time and compensate the one-sample delay inherent in digital
+control, thereby mitigating its adverse effects on current ripple
+and voltage regulation. Furthermore, a corrective current term is
+incorporated into the BB switching function to eliminate steadystate error and enhance dynamic performance. To improve
+practicality, an output-current estimation technique is developed
+to reduce dependence on load characteristics and remove the need
+for an additional current sensor. Simulation and experimental results verify that the proposed MBB control retains the simplicity
+of BB control while significantly reducing current ripple and
+steady-state error, offering an efficient and easily implementable
+solution for high-performance DC-DC converters.
+
+Fig. 1. DC-DC boost converter scheme.
+
+control the output voltage, including adaptive PID [14], sliding
+mode [15], and direct voltage model predictive control [16]
+methods. While effective, these methods are often limited by
+converter nonlinearities and digital processing delays [17]. In
+particular, in boost converters, an increase in duty cycle first
+causes a voltage drop before rising, and controller structures
+address this differently: PI controllers need a careful tuning,
+MPC needs a long-horizon prediction, and fast switching
+schemes like hysteresis, BB, or short-horizon MPC struggle
+to compensate for the NMP effect (Fig. 2(a)). In the case
+of BB control, the switching action determined solely by
+the voltage error can cause a temporary short circuit of the
+input source and uncontrolled inductor-current growth (Fig.
+2(b)). This discussion defines the core problem analyzed in
+this paper: although BB control offers fast dynamic response,
+it leads to instability when applied directly to NMP systems
+such as the boost converter, whereas cascaded control ensures
+stability at the cost of slower dynamics and higher overshoot.
+Accordingly, this work aims to develop a BB-based voltage
+controller that achieves stability and fast response under both
+reference and load variations.
+The hysteresis control method is a widely used technique
+in power electronics [18], [19]. This nonlinear technique
+operates by defining a hysteresis band within which the system
+remains stable. When the error exceeds the hysteresis band,
+the system switches states to maintain control. However, this
+
+Fig. 2. Direct voltage regulation without considering current feedback using
+(a) single-horizon MPC, and (b) BB control.
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+Integration of a model-based delay compensation in BB
+control to reduce current ripple while preserving low
+computational cost and real-time feasibility.
+• Introduction of a corrective term in the switching function
+for voltage and current regulation, effectively removing
+the steady-state error associated with BB control.
+• Development of an output-current estimation method that
+reduces load dependence and removes the need for an
+additional sensor, enhancing robustness and practicality.
+• Demonstration that the proposed MBB controller closely
+matches the performance of the short-horizon MPC
+method introduced in [32], [34], achieving comparable
+transient response to reference and load variations while
+retaining the simplicity and low computational cost of
+conventional BB control.
+•
+
+II. S YSTEM D ESCRIPTION
+To enable the proposed compensation mechanism, it is
+essential to derive an accurate dynamic model that captures
+the behavior of the DC–DC boost converter under different
+switching conditions. According to the scheme of the converter
+from Fig. 1, vs and vout denote the input and output voltages,
+and iL , iLoad and iD represent the inductor current, the load
+current, and the diode current, respectively. The symbols L,
+C, S, and D correspond to the inductor, capacitor, switch, and
+diode. Based on the converter’s operation during the ON and
+OFF switching intervals, the continuous-time dynamic model
+can be expressed as follows
+1
+diL
+= vs
+dt
+L
+dvout
+−1
+=
+iLoad
+dt
+C
+
+(1a)
+(1b)
+
+1
+diL
+= (vs − vout )
+(2a)
+dt
+L
+dvout
+1
+= (iL − iLoad )
+(2b)
+dt
+C
+In (1), as illustrated in Fig. 3(a), the switch is ON and energy
+is stored in the inductor, causing iL to increase. During this
+mode, the capacitor supplies energy to the load, resulting
+in a decrease in vout . In (2), as depicted in Fig. 3(b), the
+switch is OFF and the energy stored in the inductor and the
+
+iLoad
+
+L
+vs
+
+iL
+
+C
+L
+iL
+
+iLoad
+C +vout
+_
+
+Load
+
+vs
+
+(a)
+
++
+_vout
+
+Load
+
+method causes variable switching frequency and current ripple,
+requiring careful design [20]. The BB control method, also
+known as on-off control, is a specific form of hysteresis
+control with a zero-width hysteresis band [21]. Unlike standard
+hysteresis control, it switches directly between maximum
+and minimum input levels whenever the error changes sign.
+This abrupt action ensures fast dynamic response, making
+BB control attractive for applications requiring rapid correction, such as motor drives and power converters [21]–[23].
+Despite its simplicity, conventional BB control suffers from
+high current ripple and strong sensitivity to digital delays. In
+particular, a one-sample delay in digital controllers can distort
+switching behavior, increasing ripple and steady-state error
+[24]. Addressing this delay is therefore essential for stable
+and accurate implementation [25].
+Model-based control strategies have gained significant attention for leveraging system dynamics to improve performance,
+enhancing transient response, robustness, and stability over
+conventional linear methods. They are particularly effective for
+nonlinear systems, where linear controllers often fail to capture
+complex interactions. Among these techniques, MPC is one
+of the most widely studied [10], [26]–[28]. MPC employs the
+system model to predict future state trajectories and determine
+the optimal control action within a defined horizon. However,
+its application to DC–DC boost converters is challenging
+due to their NMP nature and the computational load of
+real-time optimization. Long prediction horizons are often
+required for accurate voltage regulation, increasing processing
+demands and limiting real-time feasibility [29]. Although
+move-blocking techniques [30], [31] can reduce this burden
+but still require powerful processors. Alternatively, regulating
+both inductor current and output voltage within MPC enables
+shorter prediction intervals and improves feasibility [32], [33].
+Adjusting weighting factors balances voltage and current regulation; however, these short-horizon MPC schemes typically
+require an additional current sensor, increasing implementation
+complexity and reducing fault tolerance.
+This paper introduces a model-based bang-bang, MBB,
+controller for DC–DC boost converters that leverages the
+converter’s mathematical model to compensate for the onesample delay inherent in digital implementation. The proposed
+method combines the simplicity and fast dynamic response
+of conventional BB control with a model-based compensation mechanism that updates the state variable in advance,
+enabling switching decision based on more accurate and timely
+information. To eliminate the steady-state error in current
+regulation often observed in BB control, a corrective current
+term is incorporated into the switching function. Furthermore,
+to improve robustness and eliminate the need for an additional
+current sensor—commonly required in recent model-based
+approaches [32]—an output-current estimation technique is
+developed. This estimation method enhances the practicality
+of the proposed strategy and ensures stable converter operation
+under varying load conditions.
+The main contributions of this paper can be summarized as
+follows:
+• Incorporation of inductor-current feedback into the
+voltage-control law to stabilize short-horizon controllers.
+
+2
+
+(b)
+
+Fig. 3. Converter operating modes: (a) ON switching state and (b) OFF
+switching state.
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+input energy are transferred to the output. Consequently, the
+capacitor charges, causing vout to rise.
+III. A PPLICATION OF BANG -BANG C ONTROL FOR B OOST
+C ONVERTER
+For regulating the boost converter, the BB controller determines the switch state S based on the measured inductor
+current and output voltage. Depending on whether the control
+target is iL or vout , the general form of the switching function
+is expressed as
+
+
+
+(3)
+S = 0.5 × 1 + sign f ∗ − f (k)
+where f ∗ and f (k) denote the reference and measured variables at sampling instant k, respectively. When f (k) < f ∗ ,
+the switch turns ON; otherwise, it turns OFF.
+A. Current Regulation
+In grid-connected DC microgrids, where the DC bus voltage
+is maintained by the main grid, converter control primarily
+focuses on inductor current regulation. The switching function
+in this case becomes
+
+
+
+S = 0.5 × 1 + sign i∗L − iL (k)
+(4)
+where i∗L is the reference inductor current. The BB controller
+keeps iL within a narrow band around i∗L by toggling the
+switch ON when the current drops below the setpoint and
+OFF when it exceeds it.
+Fig. 4 illustrates the inductor current behavior under a onesample digital delay. The reference current steps from 5 A to
+15 A at 0.02 s, then to 10 A at 0.04 s. The delay causes larger
+current ripples and steady-state deviation because switching
+reacts to outdated measurements. At low duty cycles, the
+inductor fails to reach the reference value, while at high duty
+cycles, the current overshoots—demonstrating sensitivity of
+BB control to sampling delay.
+B. Voltage Regulation
+In islanded DC microgrids, converter control must ensure
+accurate DC-bus voltage regulation. If the control law considers only vout , the BB switching function simplifies to
+
+
+h
+i
+∗
+S = 0.5 × 1 + sign (vout
+− vout (k)
+(5)
+However, this approach neglects the converter’s internal dynamic—particularly iL —and leads to instability due to the
+
+3
+
+boost converter’s NMP behavior. As shown in Fig. 2(b), omitting current regulation causes the system to become unstable,
+with the output voltage diverging from its reference. This result
+highlights the inherent limitation of voltage-only switching in
+BB control when applied to NMP boost converters.
+IV. P ROPOSED M ODEL -BASED BANG -BANG C ONTROL
+A. Principle of Proposed Control
+To ensure stable operation and limit current ripple, the control objective must consider both output voltage and inductor
+current. Accordingly, the switching function is modified as
+shown in Eq. (6) to reflect this dual-objective regulation.
+
+
+h
+
+i
+∗
+(6)
+S = 0.5× 1+sign (vout
+−vout (k) +λ ides
+−i
+(k)
+L
+L
+∗
+where vout
+and ides
+are the desired output voltage and inL
+ductor current, respectively. vout (k) and iL (k) are the actual
+values of the output voltage and inductor current at instant k,
+respectively. λ is a weighting factor used to balance between
+the objectives of the switching function. It is noted that ides
+L is
+calculated based on power balance, neglecting converter losses
+as
+∗
+× iLoad
+vout
+(7)
+Pin ≃ Pout =⇒ ides
+L ≃
+vs
+where Pin and Pout are the input and output power of the
+converter. Based on (7), the load current’s information is
+needed to obtain ides
+L . Long-horizon MPC methods reported
+in the literature [16], [29]–[31] often assume resistive load
+characteristics, where iLoad = vout /R. These approaches are
+therefore load-dependent, requiring model modification when
+load type changes. In short-horizon MPC methods [32], [33],
+the load current is measured using an additional current sensor.
+To eliminate this dependency, the proposed MBB method
+incorporates a load-current estimation scheme, described in
+Section IV-B, which allows operation independent of load type
+and eliminates the need for an additional load current sensor
+by estimating the load current, while the inductor current (a
+required state variable for system dynamics) is still measured.
+The proposed switching function in its fundamental form (6)
+was implemented in a simulation environment to evaluate the
+effectiveness of the BB controller in voltage regulation, while
+accounting for the one-sample delay introduced by digital
+implementation (see Fig. 5). As shown in Fig. 4 and discussed
+in Section III-A, the bang-bang controller exhibits increased
+current ripple and a steady-state error when subject to digital
+delay. To reduce the current ripple, the proposed MBB control
+strategy incorporates the converter’s discrete-time model to
+update the inductor, as described in Section IV-C. Moreover,
+to mitigate the steady-state current error, a corrective term is
+added to the switching function, as explained in Section IV-D.
+
+B. Output Current Estimation Method
+To achieve fully model-based operation without requiring
+an additional current sensor, the output current is estimated
+using Kirchhoff’s current law at the converter output node as
+Fig. 4. Current regulation performance of the BB method under one-sample
+digital delay.
+
+iLoad (k) = iD (k) − C
+
+vout (k) − vout (k − 1)
+Ts
+
+(8)
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+Fig. 5. Voltage regulation performance of the conventional BB method under
+one-sample digital delay.
+
+Here, iD (k) represents the diode current at the current sampling instant, which is obtained by
+
+iD (k) = 1 − S(k − 1) × iL (k)
+(9)
+Equation (9) accounts for the one-sample delay, necessitating
+the use of the switching state from the previous sampling
+instant (S(k −1)) to accurately estimate the output current. As
+a result, the final expression for the output current estimation
+is derived by improving the accuracy of the current estimation
+through the use of the average inductor current over two
+consecutive sampling periods given by
+ iL (k) + iL (k − 1)
+iest
+Load (k) = 1 − S(k − 1) ×
+2
+(10)
+vout (k) − vout (k − 1)
+−C
+Ts
+To further refine the output current estimation process,
+the potential measurement noise from the voltage sensor is
+considered. To this end, a second-order low-pass filter is
+designed to minimize the impact of this noise, ensuring a more
+precise estimation. The filter’s characteristic is given by
+T (s) =
+
+Kωc2
+2
+s + 2ζωc s + ωc2
+
+(11)
+
+where K denotes the filter gain (set to unity), ωc = 2πfc is
+the cut-off angular frequency, and ζ is the damping ratio.
+To provide a systematic basis for selecting the cut-off
+frequency fc , the filter dynamics can be analyzed through its
+pole locations:
+p
+s1,2 = −ζωc ± jωc 1 − ζ 2 .
+(12)
+These poles are directly determined by ωc . Increasing ωc
+shifts the poles further into the left-half plane, resulting in
+faster response but reduced attenuation of high-frequency
+
+4
+
+noise. Conversely, decreasing ωc improves noise suppression
+by attenuating high-frequency components, but introduces
+additional phase delay and limits the ability of the estimator
+to track fast signal variations. Therefore, the selection of ωc
+involves a trade-off between noise attenuation and dynamic
+performance.
+In this application, the dominant disturbance originates
+from switching harmonics at the switching frequency fs and
+its multiples. Accordingly, the cut-off frequency should be
+selected sufficiently lower than fs to attenuate switchinginduced ripple, while remaining higher than the dominant lowfrequency dynamics governed by the output LC time constants.
+Based on this frequency separation principle [35], the cut-off
+frequency is selected to satisfy this trade-off.
+For the system under consideration with fs = 50 kHz, a cutoff frequency of fc = 200 Hz is selected as an effective compromise between noise attenuation and dynamic performance.
+The damping ratio ζ is fixed at 0.707 to achieve a welldamped response with minimal overshoot. To enable digital
+implementation, the discrete form of the filter is derived using
+the backward Euler method with a sampling frequency of 50
+kHz, as follows:
+T (z) =
+
+0.0006316547
+1.0361693508z −2 − 2.0355376961z −1 + 1
+
+(13)
+
+It should be noted that the proposed low-pass filter is
+applied only within the load current estimation loop and
+does not directly modify the primary control law. Due to the
+significant separation between the filter bandwidth and the
+converter switching frequency, the phase delay introduced by
+the filter remains negligible. As a result, the transient response
+is effectively preserved, with no observable degradation in
+voltage dynamics under load step conditions.
+Furthermore, the inclusion of the filter is essential in practical implementations to suppress unavoidable measurement
+noise, thereby ensuring reliable estimation and robust control
+performance.
+C. Model-Based Current Update
+To realize the model-based compensation mechanism, the
+dynamic equations of the boost converter current are discretized to update the inductor current one sampling step
+ahead. Using the Euler method applied to the continuous-time
+models (1a) and (2a), the discrete forms are obtained as
+Ts
+(14a)
+vs (k) + iL (k)
+L
+Ts
+(14b)
+iL (k + 1) =
+(vs (k) − vout (k)) + iL (k)
+L
+where Ts is the sampling period of the controller. Depending
+on the switching state selected in the previous computational
+cycle and realized in the cycle k, either (14a) or (14b) is used
+to compute the updated inductor current. The compensated
+current is then applied in the BB control law to determine the
+switching action for time step k + 1. As demonstrated later,
+this approach effectively reduces current ripple.
+Although updating the DC bus voltage signal is also possible, it can be omitted because of the large capacitance typically
+iL (k + 1) =
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+used in the DC link, which results in negligible voltage
+variation within a single switching period. Consequently, the
+one-sample delay introduced by digital implementation has
+an insignificant influence on the voltage dynamics. Therefore,
+unlike conventional model-based predictive control strategies
+that update both current and voltage at each step, the proposed
+method excludes voltage updating. This omission avoids redundant computations, reduces the overall computational burden, and enhances real-time feasibility without compromising
+control performance.
+
+5
+
+In this figure, icomp
+represents the compensated inductor curL
+rent, which corresponds to the update current value at the next
+sampling interval. As demonstrated, the compensated current
+at instant k matches the measured current at instant k + 1,
+ensuring that the switching decision is based on the correct
+current information. Although pure current regulation using
+the BB controller is not the primary objective of this work,
+the corrective action introduced through i∆ will be employed
+in voltage regulation, where the control law incorporates both
+output-voltage and inductor-current terms.
+
+D. Modified Switching Function
+The compensated current variable calculated from (14) is
+used in the BB switching function to determine the next control action in both, current regulation and voltage regulation
+modes.
+1) Current Regulation: As illustrated in Fig. 4, the conventional BB controller can introduce steady-state error at
+certain duty cycles. To address this issue, a corrective term
+is incorporated into the current regulation switching function.
+This enhancement allows the controller to more accurately
+adjust the inductor current, thereby eliminating steady-state
+error and improving current tracking precision. This enhancement is particularly critical when operating at duty cycles
+significantly lower or higher than 0.5, where the inductor may
+either lack sufficient time to build up the required current or
+risk saturation. The modified switching function for current
+regulation is expressed as
+
+
+
+S = 0.5 × 1 + sign (ides
+(15)
+L + i∆ ) − iL (k + 1)
+where i∆ is the corrective term added to the switching
+function. This term, which represents the average change in
+inductor current during the ON and OFF states, is given by
+ Ts
+(16)
+L
+It should be noted that the corrective term i∆ is introduced
+to compensate for the average inductor current variation over
+a switching cycle, thereby eliminating steady-state error and
+improving current tracking accuracy.
+The switching expression (ides
+L − iL (k + 1) + i∆ ) can be
+interpreted as the combination of a current tracking error
+term and a feedforward corrective component. The current
+error term governs the dynamic behavior of the system, while
+i∆ shifts the effective current reference to compensate for
+steady-state offset caused by switching asymmetry. Importantly, i∆ does not introduce additional system dynamics, as it
+does not contain derivative or state-dependent dynamic terms.
+Therefore, it does not introduce new poles into the closedloop system and does not affect the stability mechanism.
+Consequently, the closed-loop stability is primarily governed
+by the switching function structure, while i∆ enhances steadystate accuracy.
+The performance of the proposed method in current regulation is illustrated in Fig. 6. As observed, the inductor current
+is accurately regulated, exhibiting negligible steady-state error
+and reduced ripple compared with the BB controller (Fig. 4).
+i∆ = 0.5 × 2vs (k) − vout (k)
+
+Fig. 6. Current regulation performance of the proposed MBB control method.
+
+2) Voltage Regulation: In voltage-regulated operation, the
+objective of the converter is to maintain the output voltage
+∗
+despite variations in load or
+vout at its reference value vout
+source voltage. In the proposed MBB controller, only the
+inductor current iL is compensated—using the model-based
+to update (iL (k + 1)) together with a corrective current term
+i∆ —while the measured output voltage vout is used directly
+in the switching function. The resulting switching function is
+defined as
+
+h
+
+∗
+− vout (k) +
+S = 0.5 × 1 + sign vout
+i (17)
+λ (ides
+L + i∆ ) − iL (k + 1)
+∗
+−vout (k) drives the output voltage toward
+The first term vout
+its reference, while the second term provides a current-based
+correction that accelerates transient recovery and improves stability under non-minimum-phase conditions. Consistent with
+the previous discussion, the corrective term i∆ acts as a
+feedforward component that adjusts the reference level of the
+current, while the stability and dynamic response are primarily
+determined by the feedback terms associated with the voltage
+and current errors in the switching function. Furthermore, the
+use of the compensated inductor current iL (k +1) ensures that
+the switching action is based on the predicted current at the
+next sampling instant, thereby mitigating the effects of digital
+delay and improving dynamic response.
+The weighting factor λ determines the relative contribution
+of the voltage and current errors in the switching decision
+and plays a key role in shaping the dynamic response of
+the controller. In particular, λ governs the trade-off between
+voltage regulation and current error. A small value of λ reduces
+the influence of current feedback, which may degrade damping
+and stability due to the NMP behavior of the converter. In
+contrast, a large value of λ increases the dominance of the
+current term, which improves current regulation but may slow
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+down the voltage response and can introduce steady-state
+deviation in the output voltage.
+In this work, λ is tuned using an offline optimization procedure to achieve an appropriate balance between fast voltage
+tracking, reduced settling time, and acceptable current ripple.
+The obtained results indicate that λ is primarily influenced by
+the output capacitance C, which governs the voltage dynamics
+of the converter. Larger capacitance values provide stronger
+energy buffering and inherently smoother voltage behavior,
+thereby reducing the need for aggressive current correction
+and leading to smaller optimal values of λ. Conversely, smaller
+capacitance values require larger λ to ensure stable and welldamped response. In contrast, the inductance L mainly affects
+the current dynamics, which are directly regulated within the
+control loop, and therefore has a less significant impact on
+the weighting factor. Based on the optimization results, an
+empirical tuning guideline is obtained as
+λ(C) = 7.48 C(µF )−0.547
+which serves as a practical design rule within the considered
+operating range.
+The complete structure of the proposed MBB voltage controller is illustrated in Fig. 7. After computing the switching
+signal, an over-current protection condition is imposed: if the
+compensated inductor current, iL (k+1), exceeds its maximum
+allowable value, imax
+. If the compensated current exceeds
+L
+imax
+,
+the
+switch
+is
+deactivated;
+otherwise, the switching state
+L
+derived from the modified switching function is applied.
+L
+
+D
+
+iL(k)
+vs(k)
+
+z-1
+
+C
+
+S
+
+current delay
+compensation
+(13ab)
+
+max
+
+vout(k)
+
+iL(k+1)
+
+iL
+
+S overcurrent
+protection
+
+Load
+
+IGBT
+driver
+
+vs
+
+S
+
+switching
+function
+(16)
+
+*
+vout
+
+z-2
+est-filt
+est
+iLoad
+iLoad LPF iLoad desired iLdes
+estimation
+(12)
+iL (7) +
+(10)
++ i∆
+vs(k) correction term vout(k)
+(15)
+
+Fig. 7. The block diagram of the proposed MBB control method for voltage
+regulation.
+
+V. S TABILITY A NALYSIS OF THE P ROPOSED MBB
+C ONTROL M ETHOD
+The proposed MBB control strategy incorporates both output voltage and inductor current feedback to address the
+NMP behavior of the boost converter. The switching function,
+previously defined in (17), is based on a composite error that
+
+6
+
+combines voltage tracking and current regulation, where the
+voltage and current tracking errors are defined as
+∗
+ev (k) = vout
+− vout (k)
+
+(18)
+
+ei (k) = (ides
+L + i∆ ) − iL (k + 1).
+
+(19)
+
+The composite switching surface is defined as
+σ(k) = ev (k) + λei (k).
+
+(20)
+
+Due to the switching nature of the controller and the
+presence of nonidealities such as parameter uncertainty, estimation errors, and measurement noise, an exact closed-form
+expression of the error dynamics is not analytically tractable.
+However, the closed-loop behavior can be characterized in a
+bounded form as
+|σ(k + 1)| ≤ ρ|σ(k)| + |d(k)|
+
+(21)
+
+where 0 < ρ < 1 represents the contraction effect induced by
+the control action and d(k) is a bounded disturbance term.
+To analyze stability, consider the discrete-time Lyapunov
+candidate function
+1
+(22)
+V (k) = σ 2 (k).
+2
+The corresponding Lyapunov difference satisfies
+∆V (k) = V (k + 1) − V (k) ≤ −αV (k) + β
+
+(23)
+
+where α > 0 and β > 0 are constants determined by system
+parameters and disturbance bounds. This inequality guarantees
+that the closed-loop system is uniformly ultimately bounded
+(UUB). Therefore, all system states remain bounded and converge to a finite neighborhood of the equilibrium point despite
+the presence of disturbances and modeling uncertainties.
+From a physical perspective, the proposed MBB control
+stabilizes the internal energy dynamics of the converter by
+regulating the inductor current. This effectively mitigates the
+instability mechanism associated with the right-half-plane zero
+of the boost converter and ensures stable voltage regulation.
+VI. R ESULTS AND D ISCUSSIONS
+The effectiveness of the proposed strategy is evaluated
+through simulation studies, comparative analysis with other
+control methods, and experimental validation. The obtained
+results are benchmarked against those of the BB control, as
+discussed in previous sections. Table I summarizes the system
+parameters used in both simulations and experiments.
+TABLE I
+S YSTEM PARAMETERS
+Parameter
+Input Voltage
+Output Voltage Range
+Maximum Inductor Current Value
+Resistive Load Range
+Constant Current Load
+Constant Power Load
+Input Inductance
+Output Capacitance
+Sampling Time
+
+Symbol
+vs
+∗
+vout
+imax
+L
+R
+iCCL
+PCP L
+L
+C
+Ts
+
+Value
+100 V
+150 V – 250 V
+20 A
+41.6 Ω – 416 Ω
+6A
+1.5 kW
+750 µH
+1500 µF
+20 µs
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+7
+
+Fig. 9. Voltage regulation performance of the proposed MBB control method
+under a 20% parameter mismatch. The subscripts ”w” and ”w-o” denote the
+cases with and without parameter mismatch, respectively.
+
+Fig. 8. Voltage regulation performance of the proposed MBB control method.
+
+A. Simulation Results
+1) Proposed BB Control Performance: The performance of
+the proposed MBB controller in voltage regulation is evaluated
+under three operating conditions, as shown in Fig. 8. The
+reference voltage is initially set to 250 V at t = 0 s and
+reduced to 150 V at t = 0.15 s. To evaluate the performance of the proposed strategy in both continuous-conduction
+mode (CCM) and during the transition to discontinuousconduction mode (DCM), the load resistance is varied from
+41.6 Ω to 208 Ω at t = 0.3 s after the system stabilizes.
+As observed, the proposed controller precisely regulates the
+output voltage, significantly reduces inductor-current ripple,
+and mitigates steady-state error through the corrective current
+term. Moreover, the estimated output current closely follows
+the measured value, confirming the accuracy and effectiveness
+of the proposed estimation method.
+2) Parameter Mismatch Robustness: To evaluate the robustness of the proposed MBB controller, its performance is first
+examined under moderate parameter variations, specifically a
+20% reduction in both the output capacitance and inductance
+of the plant. As shown in Fig. 9, this variation has a negligible
+impact on voltage regulation and overall system stability.
+The controller maintains accurate steady-state performance,
+with no noticeable deviation in output voltage or current
+ripple. A slightly faster transient response is observed, which
+is attributed to the reduced energy storage of the passive
+components rather than any limitation of the control strategy.
+To further investigate robustness limits, more severe mismatch conditions are considered by applying simultaneous
+±50% variations in both the inductance (L) and capacitance
+(C) of the plant. These extreme deviations represent conservative worst-case scenarios that exceed typical component
+tolerances and aging effects. The simulation results for +50%
+
+and −50% variations are depicted in Fig. 10 and Fig. 11,
+respectively. As can be seen, the output voltage continues to
+closely track the reference value with no steady-state error
+under all conditions, confirming the strong robustness of the
+proposed MBB controller.
+
+Fig. 10. Voltage regulation performance of the proposed MBB control method
+under a 50% increase in parameter mismatch. The subscripts ”w” and ”w-o”
+denote the cases with and without parameter mismatch, respectively.
+
+It is worth noting that the observed variations in system
+behavior are primarily governed by the physical characteristics of the passive components. Specifically, a decrease in
+inductance increases the inductor current ripple, while a higher
+inductance results in smoother current waveforms. Similarly,
+a lower capacitance leads to faster voltage dynamics, whereas
+a higher capacitance produces a slower but smoother transient
+response. Despite these variations, the controller consistently
+maintains stable operation, accurate voltage regulation, and
+bounded current behavior. No instability or degradation in
+control performance is observed across all tested scenarios.
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+8
+
+Fig. 13. Voltage regulation comparison of short-horizon MPC [34] and
+proposed MBB methods.
+
+Fig. 11. Voltage regulation performance of the proposed MBB control method
+under a 50% decrease in parameter mismatch. The subscripts ”w” and ”w-o”
+denote the cases with and without parameter mismatch, respectively.
+
+B. Comparative Evaluation
+To further validate the effectiveness of the proposed MBB
+controller, comparative simulations were conducted in two
+stages. In the first stage, the controller was compared with
+two widely used voltage-control strategies for boost converters—PI–MPC and PI–BB—where a PI regulator forms the
+outer voltage loop, and MPC or BB governs the inner current
+loop. In the second stage, the proposed method was compared
+with a recently reported short-horizon MPC (SH-MPC) [34],
+which simultaneously regulates voltage and current through a
+single predictive framework.
+1) Comparison with Cascaded Controllers: As shown in
+Fig. 12, all controllers successfully regulate the output voltage;
+however, their transient behaviors differ significantly. The
+proposed MBB controller achieves the fastest response and
+exhibits negligible overshoot or undershoot during reference
+voltage transitions at 0.15 s and 0.3 s. In contrast, the PI–MPC
+and PI–BB strategies show slower settling and larger transient
+deviations.
+
+Fig. 12. Voltage regulation comparison of PI–MPC, PI–BB, and proposed
+MBB methods.
+
+2) Comparison with Short-Horizon MPC: In the second
+stage, the proposed MBB control strategy is compared with the
+SH-MPC method [34] under identical test conditions (Fig. 13).
+The results show that both methods exhibit nearly identical
+dynamic and steady-state performance, confirming that the
+
+proposed model-based compensation successfully reproduces
+the predictive behavior of SH-MPC. However, the MBB
+controller demonstrates lower voltage ripples compared with
+SH-MPC, highlighting its superior steady-state smoothness.
+Moreover, unlike SH-MPC—which requires solving an optimization problem at each sampling instant and updating both
+current and voltage states—the MBB approach determines the
+switching state through an explicit control law. By omitting
+the voltage updating step, computational burden is further
+reduced without affecting accuracy. This simplicity enables
+real-time implementation on low-cost digital controllers while
+maintaining fast transient response and high control precision.
+To quantitatively support this claim, a comparison of the
+computational requirements imposed by both strategies on the
+target DSP is presented in Table II.
+TABLE II
+C OMPUTATIONAL C OMPLEXITY C OMPARISON B ETWEEN P ROPOSED MBB
+AND S HORT- HORIZON MPC [34]
+Metric
+Multiplications
+Add./Sub.
+Comparisons
+Steps
+Cost eval.
+Clock cycles
+Exec. time (ns)
+
+SH-MPC
+16
+16
+≈2 (cost+dec.)
+k+1, k+2
+Required (per state)
+≈34
+≈227
+
+MBB
+8
+8
+1 (sign)
+k+1
+Not required
+≈17
+≈113
+
+As observed, the estimated execution time of the proposed
+MBB controller is approximately 113 ns, whereas the MPC
+method requires approximately 227 ns. This indicates that the
+proposed method reduces the computational burden by nearly
+50%, primarily due to the elimination of prediction step and
+cost function evaluation.
+3) Quantitative Comparison: To improve the clarity and
+readability of the comparison, a zoomed-in view focusing on
+the load step interval is presented in Fig. 14. This representation brings together the responses of all control methods within
+the same time window, allowing a direct and fair comparison
+of their transient behavior. By concentrating on this critical operating region, the differences in dynamic performance—such
+as overshoot, settling time, and transient current response—are
+more clearly observable.
+To further quantify these differences, key performance metrics are extracted from the load step response and summarized
+in Table III. The selected metrics include voltage settling time,
+voltage overshoot, and inductor current ripple, providing a
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+9
+
+vout (50 V/div)
+
+vout (50 V/div)
+
+iL (5 A/div)
+
+iL (5 A/div)
+200 (μs)
+
+200 (μs)
+
+vout (50 V/div)
+200 (μs)
+
+vout (50 V/div)
+
+200 (μs)
+iL (5 A/div)
+
+iL (5 A/div)
+
+(a)
+Fig. 14. Voltage regulation comparison of the proposed MBB control method
+with PI-BB, PI-MPC, and short-horizon MPC [34] under a load step.
+
+comprehensive assessment of transient performance. As can be
+seen, the proposed MBB control method achieves the fastest
+settling time and the lowest overshoot among the considered
+approaches, while maintaining a comparable level of current
+ripple. This demonstrates that the proposed method provides
+an improved trade-off between dynamic performance and
+implementation simplicity.
+TABLE III
+Q UANTITATIVE C OMPARISON U NDER L OAD S TEP C ONDITIONS
+Method
+PI-BB
+PI-MPC
+SH-MPC [34]
+MBB
+
+Settling time
+(ms)
+53.13
+43.75
+7.81
+4.68
+
+Volt. Over-shoot
+(V)
+8.15
+8.25
+2.5
+0.8
+
+Current Ripple
+(A)
+5.5
+5.8
+6.0
+6.0
+
+C. Experimental Results
+The effectiveness of the proposed MBB method is validated
+via experimental results. The experimental setup depicted in
+Fig. 15 is used for this purpose, utilizing a Texas Instrument
+TMS320F28335 microcontroller operating at a clock cycle of
+150 MHz with 12-bits ADC channels. The results are obtained
+under varying load conditions, including resistive, constant
+CPL
+
+PC (CCS)
+
+Scope
+DC voltage
+source
+
+Resistive
+load
+
+TMS320F28335
+
+sensors
+
+Boost
+converter
+
+Fig. 15. Testbed for experimental validation of the proposed method
+
+(b)
+
+Fig. 16. Steady-state behavior of the boost converter with a 41.6 Ω resistive
+load in CCM (first row) and a 416 Ω resistive load in DCM (second row): (a)
+proposed MBB control and (b) BB control for a reference voltage of 250 V.
+
+current (CC), and constant power (CP) loads, to demonstrate
+the robustness of the proposed method.
+1) Case 1 – Resistive Load: The proposed controller is experimentally validated using resistive loads under both steadystate and transient conditions. To assess its performance across
+CCM and DCM, two loads are tested: 41.6 Ω and 416 Ω.
+Fig. 16 shows the steady-state waveforms at a 250 V
+reference. The first row corresponds to CCM operation and the
+second to DCM. In each case, the left column presents results
+for the proposed MBB method, while the right shows those
+of the BB controller. As observed, both methods maintain the
+desired output voltage; however, the MBB controller achieves
+approximately 50% lower current ripple and eliminates steadystate error in both modes. This improvement results from
+the combined effect of the model-based current update and
+the corrective term, which together ensure smoother current
+transitions and improved voltage stability.
+To further evaluate the proposed controller under dynamic
+conditions, transient tests are performed using resistive loads.
+In the first scenario, the load is changed from 416 Ω to 41.6
+Ω and vice versa, with the reference voltage fixed at 250 V
+(Fig. 17). In the second scenario, the load is held constant at
+41.6 Ω while the reference voltage is varied—first increasing
+from 150 V to 250 V, then decreasing back to 150 V (Fig. 18).
+As shown, the proposed MBB controller provides accurate voltage tracking and rapid recovery following both load
+and reference variations. Compared with the BB control, it
+achieves lower current ripple, faster settling, and no observable
+overshoot or undershoot. These improvements are caused by
+updating the inductor current, which compensates for digital
+delay while preserving the fast response of BB control.
+2) Case 2 – Non-resistive Loads: The converter’s dynamic
+performance is evaluated under CC and CP loads to verify
+that the proposed method is independent of load type. The
+reference voltage is stepped between 150 V and 250 V (both
+directions), as shown in Fig. 19 and Fig. 20. Tests used a 6
+A CC load (1.5 kW at 250 V) and a 1.5 kW CP load at the
+converter output.
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+2 (ms)
+
+vout (50 V/div)
+
+10
+
+vout (50 V/div)
+
+20 (ms)
+
+iL (5 A/div)
+
+iL (5 A/div)
+
+(a)
+
+2 (ms)
+
+(a)
+
+vout (50 V/div)
+
+20 (ms)
+
+vout (50 V/div)
+
+iL (5 A/div)
+iL (5 A/div)
+
+(b)
+
+(b)
+
+Fig. 17. Dynamic response of the boost converter using proposed MBB to
+load changes: (a) from 416 Ω to 41.6 Ω, and (b) from 41.6 Ω to 416 Ω, under
+reference voltage of 250 V.
+
+Fig. 19. Dynamic response of the boost converter using proposed MBB to
+reference voltage changes from: (a) 250 V to 150 V (b) 150 V to 250 V,
+under a 6 A constant current load.
+
+vout (50 V/div)
+iLoad (5 A/div)
+
+vout (50 V/div)
+
+iL (5 A/div)
+
+10 (ms)
+
+iL (5 A/div)
+100 (ms)
+
+(a)
+
+(a)
+
+iLoad (5 A/div)
+vout (50 V/div)
+
+vout (50 V/div)
+50 (ms)
+
+iL (5 A/div)
+
+iL (5 A/div)
+
+100 (ms)
+
+(b)
+
+(b)
+
+Fig. 18. Dynamic response of the boost converter using the proposed MBB
+control during reference voltage transitions under a 41.6 Ω resistive load: (a)
+step-up from 150 V to 250 V, and (b) step-down from 250 V to 150 V.
+
+Fig. 20. Dynamic response of the boost converter using proposed MBB
+controller to a reference voltage change from: (a) 250 V to 150 V, and (b)
+from 150 V to 250 V under a 1.5 kW constant power load.
+
+As observed, regardless of the load type, the proposed
+MBB method accurately tracks the reference voltage while
+maintaining lower inductor current ripple compared with the
+BB method, which suffers from high ripple caused by digital
+implementation. The results also highlight the effectiveness
+of the output current estimation method, which accurately
+determines the required inductor current for switching decisions without requiring prior knowledge of the load type or
+additional current sensor.
+
+VII. C ONCLUSION
+This paper presented a model-based bang-bang control
+strategy for DC–DC boost converters. While BB control offers
+simplicity and fast response, it suffers from current ripple
+and steady-state error due to one-sample digital delay. The
+proposed MBB method employs a model-based compensation
+mechanism to update state variables in advance, ensuring accurate switching decisions. A corrective current term eliminates
+steady-state error, and an output-current estimation technique
+
+IEEE JOURNAL OF EMERGING AND SELECTED TOPICS IN INDUSTRIAL ELECTRONICS
+
+removes dependence on load characteristics and the need for
+an extra sensor.
+Simulation and experimental results verify that the MBB
+controller achieves fast and precise voltage regulation with significantly reduced ripple, maintaining stable operation under
+resistive, constant-current, and constant-power loads. Overall,
+the MBB strategy combines BB simplicity with model-based
+state updating, providing a robust and computationally efficient
+solution for DC–DC converters in modern microgrids.
+
+R EFERENCES
+[1] M. A. Hassan, B. E. Sedhom, M. A. Abido, and A. A. Eladl, “Robust MG control considering uncertain constant power load,” Control
+Engineering Practice, vol. 156, p. 106184, 2025.
+[2] T. Dragičević, X. Lu, J. C. Vasquez, and J. M. Guerrero, “Dc microgrids—part i: A review of control strategies and stabilization techniques,” IEEE Transactions on Power Electronics, vol. 31, no. 7, pp.
+4876–4891, 2015.
+[3] J. Liu, T. Wei, N. Chen, Y. Yin, and W. T. Ng, “A dual-mode digital
+controller with a high accuracy load current estimator and gaussian
+adaptive duty cycle switching for fast transient recovery in dc-dc buck
+converters,” Computers and Electrical Engineering, vol. 118, p. 109463,
+2024.
+[4] M. Forouzesh, Y. P. Siwakoti, S. A. Gorji, F. Blaabjerg, and B. Lehman,
+“Step-up dc–dc converters: a comprehensive review of voltage-boosting
+techniques, topologies, and applications,” IEEE Transactions on Power
+Electronics, vol. 32, no. 12, pp. 9143–9178, 2017.
+[5] A. Korompili and A. Monti, “Review of modern control technologies
+for voltage regulation in dc/dc converters of dc microgrids,” Energies,
+vol. 16, no. 12, p. 4563, 2023.
+[6] V. V. Paduvalli, R. Taylor, L. R. Hunt, and P. T. Balsara, “Mitigation
+of positive zero effect on nonminimum phase boost dc–dc converters in
+ccm,” IEEE Transactions on Industrial Electronics, vol. 65, no. 5, pp.
+4125–4134, 2017.
+[7] C. Yanarates and Z. Zhou, “Design and cascade PI controller-based
+robust model reference adaptive control of dc-dc boost converter,” IEEE
+Access, vol. 10, pp. 44 909–44 922, 2022.
+[8] A. Al Zawaideh and I. M. Boiko, “Analysis of stability and performance
+of a cascaded PI sliding-mode control dc–dc boost converter via lprs,”
+IEEE Transactions on Power Electronics, vol. 37, no. 9, pp. 10 455–
+10 465, 2022.
+[9] L. H. S. C. Barreto, E. A. A. Coelho, V. J. Farias, L. C. de Freitas, and
+J. J. B. Vieira, “The bang-bang hysteresis current waveshaping control
+technique used to implement a high power factor power supply,” IEEE
+Transactions on Power Electronics, vol. 19, no. 1, pp. 160–168, 2004.
+[10] S.-K. Kim, C. R. Park, J.-S. Kim, and Y. I. Lee, “A stabilizing model
+predictive controller for voltage regulation of a dc/dc boost converter,”
+IEEE Transactions on Control Systems Technology, vol. 22, no. 5, pp.
+2016–2023, 2014.
+[11] P. Karamanakos, T. Geyer, and S. Manias, “Direct model predictive
+current control strategy of dc–dc boost converters,” IEEE Journal of
+Emerging and Selected Topics in Power Electronics, vol. 1, no. 4, pp.
+337–346, 2013.
+[12] S. Mariéthoz, S. Almér, M. Bâja, A. G. Beccuti, D. Patino, A. Wernrud,
+J. Buisson, H. Cormerais, T. Geyer, H. Fujioka et al., “Comparison of
+hybrid control techniques for buck and boost dc-dc converters,” IEEE
+Transactions on Control Systems Technology, vol. 18, no. 5, pp. 1126–
+1145, 2009.
+[13] A. Nduwamungu, T. T. Lie, I. Lestas, N.-K. C. Nair, and K. Gunawardane, “Control strategies and stabilization techniques for dc/dc converters application in DC MGs: challenges, opportunities, and prospects—a
+review,” Energies, vol. 17, no. 3, p. 669, 2024.
+[14] S. Ghamari, M. Hajihosseini, D. Habibi, and A. Aziz, “Design of
+an adaptive robust PI controller for dc/dc boost converter using
+reinforcement-learning technique and snake optimization algorithm,”
+IEEE Access, 2024.
+[15] D. Zambrano-Prada, A. El Aroudi, O. López-Santos, L. VázquezSeisdedos, and L. Martı́nez-Salamero, “Adaptive sliding mode control
+of a boost converter with unknown constant power load,” IEEE Access,
+2025.
+
+11
+
+[16] F. R. Tatari, H. Bizhani, and G. Iwanski, “A current-limiting direct voltage model predictive control for dc-dc boost converter,” in 2024 IEEE
+15th International Symposium on Power Electronics for Distributed
+Generation Systems (PEDG). IEEE, 2024, pp. 1–6.
+[17] L. Corradini, D. Maksimovic, P. Mattavelli, and R. Zane, Digital control
+of high-frequency switched-mode power converters. John Wiley & Sons,
+2015.
+[18] R. V. Chavali, A. Dey, and B. Das, “A hysteresis current controller PWM
+scheme applied to three-level NPC inverter for distributed generation
+interface,” IEEE Transactions on Power Electronics, vol. 37, no. 2, pp.
+1486–1495, 2022.
+[19] D. Yu, H. Yi, F. Zhuo, Y. Li, and X. Jiang, “Hysteresis current controller
+with fixed switching frequency and phase for interleaved converters,”
+IEEE Transactions on Power Electronics, vol. 39, no. 12, pp. 15 376–
+15 388, 2024.
+[20] A. Schild, J. Lunze, J. Krupar, and W. Schwarz, “Design of generalized
+hysteresis controllers for dc–dc switching power converters,” IEEE
+Transactions on Power Electronics, vol. 24, no. 1, pp. 138–146, 2009.
+[21] X. Chen, L. Wang, Y. Liu, and Q. Wu, “Bang-bang funnel control
+of three-phase full-bridge inverter under dual-buck scheme,” IEEE
+Transactions on Industrial Electronics, vol. 70, no. 6, pp. 5399–5409,
+2023.
+[22] A. Rubaai and J. Jerry, “Hybrid fuzzy bang–bang mode controller
+with switching function for electric motor drive applications,” IEEE
+Transactions on Industry Applications, vol. 50, no. 3, pp. 2269–2276,
+2013.
+[23] X. Chen, Y. Liu, Q. H. Wu, C. Hong, and Y. Su, “Direct power regulation
+of grid-connected voltage-source inverters based on bang-bang funnel
+control,” IEEE Transactions on Industrial Electronics, vol. 71, no. 7,
+pp. 6460–6470, 2024.
+[24] S. He, D. Zhou, X. Wang, Z. Zhao, and F. Blaabjerg, “A review
+of multisampling techniques in power electronics applications,” IEEE
+Transactions on Power Electronics, vol. 37, no. 9, pp. 10 514–10 533,
+2022.
+[25] C. Lin, H. Wang, Q. Deng, X. Ge, D. Liu, D. Xie, and Y. Zuo, “Impact
+analysis of digital delay on power factor and compensation strategy for
+electric traction pwm rectifier,” IEEE Journal of Emerging and Selected
+Topics in Power Electronics, vol. 11, no. 1, pp. 952–961, 2023.
+[26] M. G. F. Devin, S. K. H. Sani, and H. Bizhani, “Dynamic performance
+improvement of induction motors used in rolling mill application: A
+two-loop model predictive control strategy,” ISA Transactions, vol. 140,
+pp. 134–143, 2023.
+[27] H. Bizhani, L. Ben-Brahim, A. Gastli, N. Al-Emadi, and M. Djemai, “A
+multi-input multi-output model predictive direct torque control for dual
+mechanical port machine,” IEEE Access, vol. 11, pp. 133 730–133 743,
+2023.
+[28] M. N. A. Kadir, H. Al-Badrani, and Y. M. Ameen, “Model predictive
+control of a new low cost 31-level inverter,” Power Electronics and
+Drives, vol. 10, 2025.
+[29] P. Karamanakos, T. Geyer, and S. Manias, “Direct voltage control of dc–
+dc boost converters using enumeration-based model predictive control,”
+IEEE Transactions on Power Electronics, vol. 29, no. 2, pp. 968–978,
+2013.
+[30] F. R. Tatari, M. Banejad, and A. A. Kalat, “A move blocking based direct
+voltage model predictive control to enhance the dynamic performance of
+dc microgrids containing constant power loads,” IET Renewable Power
+Generation, vol. 17, no. 13, pp. 3340–3354, 2023.
+[31] F. R. Tatari, M. Banejad, A. A. Kalat, and G. Iwanski, “A long-horizon
+move-blocking based direct power model predictive control for dynamic
+enhancement of dc microgrids,” Ain Shams Engineering Journal, vol. 15,
+no. 7, p. 102837, 2024.
+[32] Y. Li, S. Sahoo, T. Dragičević, Y. Zhang, and F. Blaabjerg, “Stabilityoriented design of model predictive control for dc/dc boost converter,”
+IEEE Transactions on Industrial Electronics, vol. 71, no. 1, pp. 922–932,
+2023.
+[33] Y. Li, S. Sahoo, S. Ou, M. Leng, S. Vazquez, T. Dragičević, and
+F. Blaabjerg, “Flexible transient design-oriented model predictive control
+for power converters,” IEEE Transactions on Industrial Electronics,
+vol. 71, no. 9, pp. 11 377–11 387, 2023.
+[34] F. R. Tatari, H. Bizhani, and G. Iwanski, “Split cost function based
+single-horizon finite-set model predictive control for boost converter
+with loading current estimation,” IEEE Journal of Emerging and Selected Topics in Power Electronics, vol. 13, no. 4, pp. 5071–5083, 2025.
+[35] R. Middlebrook, “Small-signal modeling of pulse-width modulated
+switched-mode power converters,” Proceedings of the IEEE, vol. 76,
+no. 4, pp. 343–354, 2002.
+
+

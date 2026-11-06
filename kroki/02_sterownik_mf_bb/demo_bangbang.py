@@ -1,3 +1,19 @@
+"""
+demo_bangbang.py — sterownik Model-Free Bang-Bang (MF-BB) w pętli zamkniętej (Krok 2).
+
+Implementacja bezmodelowego sterownika Bang-Bang wg Artykułu 2 (Tatari, Bizhani, Iwański,
+Power Electronics and Drives). Generuje sygnał odniesienia prądu cewki i_des przez filtr
+LP 1. rzędu (alpha=0.01, beta=0.98) z mierzonego i_L, następnie steruje kluczem na
+podstawie funkcji przełączającej:
+
+    S = K_v · (u_ref - u_C) + w_i · (i_des - i_L)
+    S > 0  →  klucz ON (gromadzimy energię w cewce)
+    S ≤ 0  →  klucz OFF (energia trafia do kondensatora i obciążenia)
+
+Scenariusz testowy: skok napięcia referencyjnego 200 V → 240 V w t=25 ms. Plik nie
+porównuje z PSIM bezpośrednio — to wersja "robocza" sterownika; walidacja PSIM
+realizowana w demo_bangbang_psim.py oraz porownanie_bb_psim.py.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 

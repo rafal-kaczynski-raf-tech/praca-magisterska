@@ -1,7 +1,20 @@
+"""
+demo.py — silnik fizyczny przetwornicy boost DC-DC w otwartej pętli (Krok 1).
+
+Numeryczna symulacja obwodu boost (V_in=100V, L=0.75mH, R_L=0.05Ω, C=200µF, R=50Ω)
+sterowanego stałym PWM (f_sw=2kHz, D=0.5) metodą Eulera z krokiem dt=1µs przez 10 ms.
+Brak sprzężenia zwrotnego — układ otwartej pętli, weryfikujący jedynie poprawność
+modelu fizycznego (równania stanu cewki i kondensatora dla obu pozycji klucza).
+
+Walidacja: nakłada przebiegi i_L i u_C na dane referencyjne z PSIM wczytane
+z `psim_wyniki.csv` (kolumny: Time, I(L7), I2, V2). Wynik graficzny stanowi
+empiryczny dowód poprawności silnika fizycznego dla pracy magisterskiej.
+"""
 import numpy as np          # NumPy - biblioteka do obliczeń matematycznych, tworzy tablice liczb
 import matplotlib.pyplot as plt  # Matplotlib - biblioteka do rysowania wykresów
 import pandas as pd         # Pandas - biblioteka do wczytywania plików CSV (tabelek z danymi)
 import os                   # os - moduł do sprawdzania czy plik istnieje na dysku
+from pathlib import Path
 
 # ==============================================================================
 # 1. PARAMETRY FIZYCZNE UKŁADU (wartości odczytane z modelu PSIM)
@@ -89,7 +102,7 @@ for k in range(1, len(t_vals)):
 # 3. WCZYTANIE DANYCH REFERENCYJNYCH Z PSIM
 # ==============================================================================
 
-plik_csv = 'psim_wyniki.csv'    # Nazwa pliku z wyeksportowanymi danymi z PSIM
+plik_csv = Path(__file__).with_name('psim_wyniki.csv')
 dane_psim_dostepne = False      # Flaga: czy udało się wczytać dane z PSIM
 
 if os.path.exists(plik_csv):

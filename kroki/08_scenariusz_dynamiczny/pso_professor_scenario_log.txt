@@ -1,0 +1,75 @@
+==============================================================================
+PSO w scenariuszu prof. Iwanskiego (4 warianty, current_correction=ON)
+==============================================================================
+
+--- wariant: ITAE ---
+PSO start: cost=ITAE, N=20, iter=40
+  iter  0  gbest_F = 0.0169283  (wi=0.243, fc=2748Hz)
+  iter  5  gbest_F = 0.0161527  (wi=0.214, fc=551Hz)  w=0.85
+  iter 10  gbest_F = 0.0159707  (wi=0.214, fc=1851Hz)  w=0.78
+  iter 15  gbest_F = 0.0157962  (wi=0.213, fc=1854Hz)  w=0.72
+  iter 20  gbest_F = 0.0157962  (wi=0.213, fc=1854Hz)  w=0.66
+  iter 25  gbest_F = 0.0157962  (wi=0.213, fc=1854Hz)  w=0.59
+  iter 30  gbest_F = 0.0157962  (wi=0.213, fc=1854Hz)  w=0.53
+  iter 35  gbest_F = 0.0157962  (wi=0.213, fc=1854Hz)  w=0.46
+  iter 40  gbest_F = 0.0157962  (wi=0.213, fc=1854Hz)  w=0.40
+
+PSO zakonczone w 261.6s  (820 ewaluacji)
+  Zapisano: optymalizacja/pso_prof_itae.npz
+
+--- wariant: CurrentAware ---
+PSO start: cost=CurrentAware, N=20, iter=40
+  iter  0  gbest_F = 0.562851  (wi=0.243, fc=2748Hz)
+  iter  5  gbest_F = 0.560979  (wi=0.269, fc=8702Hz)  w=0.85
+  iter 10  gbest_F = 0.560656  (wi=0.274, fc=7673Hz)  w=0.78
+  iter 15  gbest_F = 0.560656  (wi=0.274, fc=7673Hz)  w=0.72
+  iter 20  gbest_F = 0.559661  (wi=0.263, fc=7056Hz)  w=0.66
+  iter 25  gbest_F = 0.559661  (wi=0.263, fc=7056Hz)  w=0.59
+  iter 30  gbest_F = 0.559661  (wi=0.263, fc=7056Hz)  w=0.53
+  iter 35  gbest_F = 0.559661  (wi=0.263, fc=7056Hz)  w=0.46
+  iter 40  gbest_F = 0.559661  (wi=0.263, fc=7056Hz)  w=0.40
+
+PSO zakonczone w 259.7s  (820 ewaluacji)
+  Zapisano: optymalizacja/pso_prof_currentaware.npz
+
+--- wariant: CurrentOscillation ---
+PSO start: cost=CurrentOscillation, N=20, iter=40
+  iter  0  gbest_F = 0.419267  (wi=0.243, fc=2748Hz)
+  iter  5  gbest_F = 0.416063  (wi=0.221, fc=2311Hz)  w=0.85
+  iter 10  gbest_F = 0.415785  (wi=0.220, fc=2203Hz)  w=0.78
+  iter 15  gbest_F = 0.415785  (wi=0.220, fc=2203Hz)  w=0.72
+  iter 20  gbest_F = 0.415785  (wi=0.220, fc=2203Hz)  w=0.66
+  iter 25  gbest_F = 0.415499  (wi=0.212, fc=2011Hz)  w=0.59
+  iter 30  gbest_F = 0.415379  (wi=0.214, fc=2134Hz)  w=0.53
+  iter 35  gbest_F = 0.415379  (wi=0.214, fc=2134Hz)  w=0.46
+  iter 40  gbest_F = 0.415299  (wi=0.212, fc=2039Hz)  w=0.40
+
+PSO zakonczone w 261.3s  (820 ewaluacji)
+  Zapisano: optymalizacja/pso_prof_currentoscillation.npz
+
+--- wariant: CurrentEffort ---
+PSO start: cost=CurrentEffort, N=20, iter=40
+  iter  0  gbest_F = 0.721767  (wi=0.243, fc=2748Hz)
+  iter  5  gbest_F = 0.717061  (wi=0.221, fc=2311Hz)  w=0.85
+  iter 10  gbest_F = 0.716782  (wi=0.220, fc=2203Hz)  w=0.78
+  iter 15  gbest_F = 0.716494  (wi=0.213, fc=6411Hz)  w=0.72
+  iter 20  gbest_F = 0.716494  (wi=0.213, fc=6411Hz)  w=0.66
+  iter 25  gbest_F = 0.716137  (wi=0.213, fc=7822Hz)  w=0.59
+  iter 30  gbest_F = 0.715701  (wi=0.218, fc=2829Hz)  w=0.53
+  iter 35  gbest_F = 0.715614  (wi=0.214, fc=3128Hz)  w=0.46
+  iter 40  gbest_F = 0.71556  (wi=0.213, fc=2767Hz)  w=0.40
+
+PSO zakonczone w 261.7s  (820 ewaluacji)
+  Zapisano: optymalizacja/pso_prof_currenteffort.npz
+
+Laczny czas PSO: 1071.5s
+
+==============================================================================
+PODSUMOWANIE NASTAW (scenariusz prof., current_correction=ON)
+==============================================================================
+wariant                   wi*   fc* [Hz]            J*
+------------------------------------------------------
+ITAE                   0.2133     1854.0     0.0157962
+CurrentAware           0.2631     7056.0      0.559661
+CurrentOscillation     0.2124     2039.3      0.415299
+CurrentEffort          0.2131     2767.1       0.71556
