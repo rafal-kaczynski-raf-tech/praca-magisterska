@@ -251,7 +251,7 @@ def run_pso(n_particles: int = N_PARTICLES,
 def main() -> None:
     result = run_pso()
     # Zapis wynikow
-    np.savez("optymalizacja/pso_results.npz",
+    np.savez("kroki/06_pso_i_funkcje_celu/pso_results.npz",
              history_gbest_F=result["history_gbest_F"],
              history_gbest_X=result["history_gbest_X"],
              history_X=result["history_X"],
@@ -259,7 +259,7 @@ def main() -> None:
              wi_opt=result["wi_opt"],
              fc_opt=result["fc_opt"],
              cost_name=result["cost_name"])
-    print(f"\nZapisano: optymalizacja/pso_results.npz")
+    print(f"\nZapisano: kroki/06_pso_i_funkcje_celu/pso_results.npz")
     print(f"\n{'='*70}")
     print(f"WYNIK PSO ({result['cost_name']})")
     print(f"{'='*70}")

@@ -12,7 +12,7 @@ import numpy as np
 import sys
 
 # Import oryginalnej proceduralnej implementacji
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "kroki" / "04_estymacja_pradu_i_walidacja"))
 import demo_bangbang_estim as orig
 
 
